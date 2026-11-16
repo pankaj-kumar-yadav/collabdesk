@@ -72,10 +72,10 @@ export function bindCollaborativeEditorMonacoToYText(
     model.setValue(next);
   }
 
+  // Awareness is omitted — remote cursors/names are painted by this app.
   bindingRef.current = new MonacoBinding(
     session.yText,
     model,
     new Set([editor]),
-    session.provider.awareness,
   );
 }

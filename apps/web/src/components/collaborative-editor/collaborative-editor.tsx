@@ -17,6 +17,7 @@ import {
   type CollaborativeEditorPresenceUser,
 } from "@/components/collaborative-editor/collaborative-editor-presence";
 import {
+  clearCollaborativeEditorRemoteCursors,
   ensureCollaborativeEditorRemoteCursorStyles,
   paintCollaborativeEditorRemoteCursors,
 } from "@/components/collaborative-editor/collaborative-editor-remote-cursors";
@@ -54,6 +55,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
   const [presence, setPresence] = useState<CollaborativeEditorPresenceUser[]>(
     [],
   );
+  const [localUserId, setLocalUserId] = useState<string | null>(null);
   const [canWrite, setCanWrite] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<CollabSession | null>(null);
@@ -76,12 +78,17 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
     setSession(nextSession);
     setStatus("connecting");
     setPresence([]);
+    setLocalUserId(null);
     setError(null);
 
     const onStatus = (s: ConnectionStatus) => setStatus(s);
-    const onHello = (payload: { canWrite?: boolean }) => {
+    const onHello = (payload: {
+      canWrite?: boolean;
+      user?: { id?: string };
+    }) => {
       const writable = Boolean(payload.canWrite);
       setCanWrite(writable);
+      setLocalUserId(payload.user?.id ?? provider.serverUser?.id ?? null);
       onReadOnlyChange?.(!writable);
     };
     const onRole = (payload: { canWrite?: boolean }) => {
@@ -98,6 +105,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
         nextSession,
         bindingRef,
       );
+      paintRemoteRef.current();
     };
 
     provider.on("status", onStatus);
@@ -146,6 +154,11 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
       provider.off("synced", onSynced);
       provider.awareness.off("change", refreshPresence);
       paintRemoteRef.current = () => {};
+      clearCollaborativeEditorRemoteCursors(editorRef.current);
+      decorationsRef.current = editorRef.current?.deltaDecorations(
+        decorationsRef.current,
+        [],
+      ) ?? [];
       bindingRef.current?.destroy();
       bindingRef.current = null;
       provider.destroy();
@@ -163,6 +176,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
       session,
       bindingRef,
     );
+    paintRemoteRef.current();
   }, [session]);
 
   useEffect(() => {
@@ -218,9 +232,15 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
             </p>
           ) : null}
         </div>
-        <div className="status-pill" aria-live="polite">
-          <span className={cn("status-dot", dotClass)} />
-          <span className="capitalize">{status}</span>
+        <div className="flex shrink-0 items-center gap-2.5">
+          <CollaborativeEditorPresence
+            presence={presence}
+            localUserId={localUserId}
+          />
+          <div className="status-pill" aria-live="polite">
+            <span className={cn("status-dot", dotClass)} />
+            <span className="capitalize">{status}</span>
+          </div>
         </div>
       </div>
       {error ? (
@@ -248,7 +268,6 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
           }}
         />
       </div>
-      <CollaborativeEditorPresence presence={presence} />
     </div>
   );
 }

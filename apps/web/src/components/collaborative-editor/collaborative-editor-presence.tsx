@@ -1,4 +1,14 @@
+"use client";
+
 import { UserAvatar } from "@/components/user-avatar";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 export type CollaborativeEditorPresenceUser = {
   clientId: number;
@@ -9,44 +19,72 @@ export type CollaborativeEditorPresenceUser = {
 
 type CollaborativeEditorPresenceProps = {
   presence: CollaborativeEditorPresenceUser[];
+  localUserId: string | null;
 };
 
 export function CollaborativeEditorPresence(
   props: CollaborativeEditorPresenceProps,
 ) {
-  const { presence } = props;
+  const { presence, localUserId } = props;
+
+  // Keep self near the end (rightmost), Figma-style.
+  const ordered = [...presence].sort((a, b) => {
+    const aSelf = a.id === localUserId ? 1 : 0;
+    const bSelf = b.id === localUserId ? 1 : 0;
+    return aSelf - bSelf;
+  });
 
   return (
-    <div className="border-t border-border/80 bg-background/50 px-3 py-2.5">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">Presence</p>
-        <p className="text-xs text-muted-foreground tabular-nums">
-          {presence.length} online
-        </p>
-      </div>
-      {presence.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          Waiting for collaborators…
-        </p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {presence.map((u) => (
+    <Card className="gap-0 rounded-full py-0 shadow-xs">
+      <CardContent className="flex items-center gap-2 px-2.5 py-1">
+        {presence.length === 0 ? (
+          <p className="text-xs text-muted-foreground whitespace-nowrap">
+            Waiting for collaborators…
+          </p>
+        ) : (
+          <TooltipProvider delayDuration={200}>
             <div
-              className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card py-1 pr-2.5 pl-1 text-xs"
-              key={`${u.clientId}-${u.id}`}
+              className="flex items-center"
+              aria-label={`${presence.length} online`}
             >
-              <UserAvatar
-                size="sm"
-                className="size-5"
-                seed={u.id || u.name}
-                name={u.name}
-                backgroundColor={u.color}
-              />
-              <span className="max-w-[8rem] truncate">{u.name}</span>
+              {ordered.map((u, index) => {
+                const isSelf = Boolean(localUserId) && u.id === localUserId;
+                const label = isSelf ? `${u.name} (me)` : u.name;
+                return (
+                  <Tooltip key={`${u.clientId}-${u.id}`}>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className={cn(
+                          "relative rounded-full outline-none transition-transform duration-150 ease-out",
+                          "hover:z-20 hover:scale-105 focus-visible:z-20 focus-visible:ring-2 focus-visible:ring-ring",
+                          index > 0 && "-ml-1.5",
+                        )}
+                        style={{ zIndex: index + 1 }}
+                        aria-label={label}
+                      >
+                        <UserAvatar
+                          size="sm"
+                          className="size-6 ring-2 ring-card"
+                          seed={u.id || u.name}
+                          name={u.name}
+                          backgroundColor={u.color}
+                        />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" sideOffset={6}>
+                      {label}
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
             </div>
-          ))}
-        </div>
-      )}
-    </div>
+          </TooltipProvider>
+        )}
+        <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+          {presence.length} online
+        </span>
+      </CardContent>
+    </Card>
   );
 }
