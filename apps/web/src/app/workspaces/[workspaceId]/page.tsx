@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBreadcrumbTrail } from "@/components/breadcrumb-context";
-import { CollaborativeEditor } from "@/components/CollaborativeEditor";
+import { CollaborativeEditor } from "@/components/collaborative-editor/collaborative-editor";
 import { FadeIn, PresenceMessage } from "@/components/motion";
 import { DetailPageSkeleton } from "@/components/page-skeleton";
 import { WorkspaceFilesSidebar } from "@/components/WorkspaceFilesSidebar";

@@ -7,21 +7,23 @@ import { useTheme } from "next-themes";
 import * as Y from "yjs";
 import { MonacoBinding } from "y-monaco";
 import type { ConnectionStatus } from "@collabdesk/shared";
+import {
+  applyCollaborativeEditorMonacoTheme,
+  bindCollaborativeEditorMonacoToYText,
+  collaborativeEditorLanguageForFileName,
+} from "@/components/collaborative-editor/collaborative-editor-monaco";
+import {
+  CollaborativeEditorPresence,
+  type CollaborativeEditorPresenceUser,
+} from "@/components/collaborative-editor/collaborative-editor-presence";
+import {
+  ensureCollaborativeEditorRemoteCursorStyles,
+  paintCollaborativeEditorRemoteCursors,
+} from "@/components/collaborative-editor/collaborative-editor-remote-cursors";
 import { getToken, getWsUrl } from "@/lib/api";
 import { fileExtensionIcon } from "@/lib/file-extension-icon";
 import { CollabWebsocketProvider } from "@/lib/y-websocket";
 import { cn } from "@/lib/utils";
-import { UserAvatar } from "@/components/user-avatar";
-
-const EDITOR_LANGUAGE_BY_EXT = {
-  ts: "typescript",
-  tsx: "typescript",
-  js: "javascript",
-  jsx: "javascript",
-  json: "json",
-  css: "css",
-  md: "markdown",
-} as const;
 
 const CONNECTION_DOT_CLASS = {
   saved: "ok",
@@ -38,72 +40,6 @@ type CollabSession = {
   provider: CollabWebsocketProvider;
 };
 
-function applyMonacoTheme(monaco: typeof Monaco, mode: "light" | "dark") {
-  if (mode === "light") {
-    monaco.editor.defineTheme("collabdesk", {
-      base: "vs",
-      inherit: true,
-      rules: [],
-      colors: {
-        "editor.background": "#ffffff",
-      },
-    });
-  } else {
-    monaco.editor.defineTheme("collabdesk", {
-      base: "vs-dark",
-      inherit: true,
-      rules: [],
-      colors: {
-        "editor.background": "#0f1419",
-      },
-    });
-  }
-  monaco.editor.setTheme("collabdesk");
-}
-
-function languageForFileName(fileName: string) {
-  const ext = fileName.includes(".")
-    ? fileName.slice(fileName.lastIndexOf(".") + 1).toLowerCase()
-    : "";
-  if (ext in EDITOR_LANGUAGE_BY_EXT) {
-    return EDITOR_LANGUAGE_BY_EXT[ext as keyof typeof EDITOR_LANGUAGE_BY_EXT];
-  }
-  return "plaintext";
-}
-
-function bindMonacoToYText(
-  editor: Monaco.editor.IStandaloneCodeEditor | null,
-  session: CollabSession | null,
-  bindingRef: { current: MonacoBinding | null },
-) {
-  if (!editor || !session) return;
-  const model = editor.getModel();
-  if (!model) return;
-
-  // Destroy first so setValue does not echo back into Y.Text via the binding.
-  bindingRef.current?.destroy();
-  bindingRef.current = null;
-
-  const next = session.yText.toString();
-  if (model.getValue() !== next) {
-    model.setValue(next);
-  }
-
-  bindingRef.current = new MonacoBinding(
-    session.yText,
-    model,
-    new Set([editor]),
-    session.provider.awareness,
-  );
-}
-
-type PresenceUser = {
-  clientId: number;
-  id: string;
-  name: string;
-  color: string;
-};
-
 export type CollaborativeEditorProps = {
   fileId: string;
   fileName: string;
@@ -115,7 +51,9 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
   const { fileId, fileName, readOnly, onReadOnlyChange } = props;
   const { resolvedTheme } = useTheme();
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
-  const [presence, setPresence] = useState<PresenceUser[]>([]);
+  const [presence, setPresence] = useState<CollaborativeEditorPresenceUser[]>(
+    [],
+  );
   const [canWrite, setCanWrite] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [session, setSession] = useState<CollabSession | null>(null);
@@ -124,6 +62,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
   const bindingRef = useRef<MonacoBinding | null>(null);
   const sessionRef = useRef<CollabSession | null>(null);
   const decorationsRef = useRef<string[]>([]);
+  const paintRemoteRef = useRef<() => void>(() => {});
   const editorTheme = resolvedTheme === "light" ? "light" : "dark";
 
   useEffect(() => {
@@ -154,7 +93,11 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
       setError(payload.message ?? "Collaboration error");
     };
     const onSynced = () => {
-      bindMonacoToYText(editorRef.current, nextSession, bindingRef);
+      bindCollaborativeEditorMonacoToYText(
+        editorRef.current,
+        nextSession,
+        bindingRef,
+      );
     };
 
     provider.on("status", onStatus);
@@ -167,62 +110,24 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
       const editor = editorRef.current;
       const monaco = monacoRef.current;
       if (!editor || !monaco) return;
-      const model = editor.getModel();
-      if (!model) return;
-
-      const decs: Monaco.editor.IModelDeltaDecoration[] = [];
-      provider.awareness.getStates().forEach((state, clientId) => {
-        if (clientId === doc.clientID) return;
-        const user = (state as { user?: { name: string; color: string } }).user;
-        const sel = (
-          state as {
-            selection?: {
-              startLineNumber: number;
-              startColumn: number;
-              endLineNumber: number;
-              endColumn: number;
-            };
-          }
-        ).selection;
-        if (!user || !sel) return;
-        const isCursor =
-          sel.startLineNumber === sel.endLineNumber &&
-          sel.startColumn === sel.endColumn;
-        decs.push({
-          range: new monaco.Range(
-            sel.startLineNumber,
-            sel.startColumn,
-            sel.endLineNumber,
-            sel.endColumn + (isCursor ? 1 : 0),
-          ),
-          options: {
-            className: isCursor ? undefined : "remote-selection",
-            inlineClassName: isCursor ? undefined : "remote-selection",
-            overviewRuler: {
-              color: user.color,
-              position: monaco.editor.OverviewRulerLane.Full,
-            },
-            after: isCursor
-              ? {
-                  content: "▋",
-                  inlineClassName: "remote-cursor",
-                }
-              : undefined,
-            stickiness:
-              monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-          },
-        });
+      paintCollaborativeEditorRemoteCursors({
+        editor,
+        monaco,
+        awareness: provider.awareness,
+        localClientId: doc.clientID,
+        decorationsRef,
       });
-
-      decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decs);
     };
+
+    paintRemoteRef.current = paintRemoteSelections;
 
     const refreshPresence = () => {
       // One chip per account — ignore ghost / multi-tab clientIDs for the same user.
-      const byUserId = new Map<string, PresenceUser>();
+      const byUserId = new Map<string, CollaborativeEditorPresenceUser>();
       provider.awareness.getStates().forEach((state, clientId) => {
-        const user = (state as { user?: { id: string; name: string; color: string } })
-          .user;
+        const user = (
+          state as { user?: { id: string; name: string; color: string } }
+        ).user;
         if (!user?.id) return;
         byUserId.set(user.id, { clientId, ...user });
       });
@@ -240,6 +145,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
       provider.off("control-error", onErr);
       provider.off("synced", onSynced);
       provider.awareness.off("change", refreshPresence);
+      paintRemoteRef.current = () => {};
       bindingRef.current?.destroy();
       bindingRef.current = null;
       provider.destroy();
@@ -252,33 +158,34 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
   }, [fileId, onReadOnlyChange]);
 
   useEffect(() => {
-    bindMonacoToYText(editorRef.current, session, bindingRef);
+    bindCollaborativeEditorMonacoToYText(
+      editorRef.current,
+      session,
+      bindingRef,
+    );
   }, [session]);
 
   useEffect(() => {
     const monaco = monacoRef.current;
     if (!monaco) return;
-    applyMonacoTheme(monaco, editorTheme);
+    applyCollaborativeEditorMonacoTheme(monaco, editorTheme);
   }, [editorTheme]);
 
   const onMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
-    bindMonacoToYText(editor, sessionRef.current, bindingRef);
+    bindCollaborativeEditorMonacoToYText(
+      editor,
+      sessionRef.current,
+      bindingRef,
+    );
 
-    const mode = document.documentElement.classList.contains("dark") ? "dark" : "light";
-    applyMonacoTheme(monaco, mode);
-
-    const styleId = "collabdesk-remote-style";
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement("style");
-      style.id = styleId;
-      style.textContent = `
-        .remote-selection { background: rgba(61, 156, 240, 0.25); }
-        .remote-cursor { color: #f0b429; font-weight: 700; margin-left: -0.3ch; }
-      `;
-      document.head.appendChild(style);
-    }
+    const mode = document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light";
+    applyCollaborativeEditorMonacoTheme(monaco, mode);
+    ensureCollaborativeEditorRemoteCursorStyles();
+    paintRemoteRef.current();
 
     editor.onDidChangeCursorSelection((e) => {
       const sel = e.selection;
@@ -292,7 +199,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
   };
 
   const locked = readOnly || !canWrite;
-  const language = languageForFileName(fileName);
+  const language = collaborativeEditorLanguageForFileName(fileName);
   const { Icon: FileIcon, className: iconClassName } =
     fileExtensionIcon(fileName);
   const dotClass = CONNECTION_DOT_CLASS[status];
@@ -306,7 +213,9 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
             <span className="truncate">{fileName}</span>
           </p>
           {locked ? (
-            <p className="text-xs text-muted-foreground">Read-only for your role</p>
+            <p className="text-xs text-muted-foreground">
+              Read-only for your role
+            </p>
           ) : null}
         </div>
         <div className="status-pill" aria-live="polite">
@@ -340,46 +249,6 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
         />
       </div>
       <CollaborativeEditorPresence presence={presence} />
-    </div>
-  );
-}
-
-type CollaborativeEditorPresenceProps = {
-  presence: PresenceUser[];
-};
-
-function CollaborativeEditorPresence(props: CollaborativeEditorPresenceProps) {
-  const { presence } = props;
-
-  return (
-    <div className="border-t border-border/80 bg-background/50 px-3 py-2.5">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">Presence</p>
-        <p className="text-xs text-muted-foreground tabular-nums">
-          {presence.length} online
-        </p>
-      </div>
-      {presence.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Waiting for collaborators…</p>
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          {presence.map((u) => (
-            <div
-              className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card py-1 pr-2.5 pl-1 text-xs"
-              key={`${u.clientId}-${u.id}`}
-            >
-              <UserAvatar
-                size="sm"
-                className="size-5"
-                seed={u.id || u.name}
-                name={u.name}
-                backgroundColor={u.color}
-              />
-              <span className="max-w-[8rem] truncate">{u.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

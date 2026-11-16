@@ -49,6 +49,7 @@ export function AppSidebar(props: AppSidebarProps) {
   const { activeWorkspaceId } = props;
   const pathname = usePathname();
   const router = useRouter();
+  const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [rows, setRows] = useState<WorkspaceRow[]>([]);
@@ -72,6 +73,7 @@ export function AppSidebar(props: AppSidebarProps) {
         router.replace(APP_ROUTES.LOGIN);
         return;
       }
+      setUserId(data.user.id);
       setUserName(data.user.name);
       setUserEmail(data.user.email);
       refresh()
@@ -171,6 +173,7 @@ export function AppSidebar(props: AppSidebarProps) {
               </div>
             ) : (
               <AppSidebarAccountMenu
+                userId={userId}
                 userName={userName}
                 userEmail={userEmail}
                 onSettings={() => router.push(APP_ROUTES.SETTINGS)}
@@ -241,6 +244,7 @@ function AppSidebarWorkspaceList(props: AppSidebarWorkspaceListProps) {
 }
 
 type AppSidebarAccountMenuProps = {
+  userId: string;
   userName: string;
   userEmail: string;
   onSettings: () => void;
@@ -248,8 +252,8 @@ type AppSidebarAccountMenuProps = {
 };
 
 function AppSidebarAccountMenu(props: AppSidebarAccountMenuProps) {
-  const { userName, userEmail, onSettings, onLogout } = props;
-  const avatarSeed = userEmail || userName || "collabdesk";
+  const { userId, userName, userEmail, onSettings, onLogout } = props;
+  const avatarSeed = userId || userEmail || userName || "collabdesk";
 
   return (
     <DropdownMenu>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { colorForUserId } from "@collabdesk/shared";
 import { dicebearAvatarDataUri } from "@/lib/dicebear-avatar";
 import { userInitials } from "@/lib/user-initials";
 import { cn } from "@/lib/utils";
@@ -25,13 +26,17 @@ export function UserAvatar(props: UserAvatarProps) {
     backgroundColor,
   } = props;
 
+  const resolvedSeed = seed || name || "collabdesk";
+  const resolvedBackground =
+    backgroundColor ?? colorForUserId(resolvedSeed);
+
   const src = useMemo(
     () =>
       dicebearAvatarDataUri({
-        seed: seed || name || "collabdesk",
-        backgroundColor,
+        seed: resolvedSeed,
+        backgroundColor: resolvedBackground,
       }),
-    [backgroundColor, name, seed],
+    [resolvedBackground, resolvedSeed],
   );
 
   const label = name?.trim() || seed;

@@ -9,6 +9,7 @@ import { attachClient, getRoomStats } from "@/yjs/rooms";
 import { prisma } from "@/db";
 import { HttpError } from "@/permissions";
 import { logError } from "@/logging";
+import { loggerOptions } from "@/utils/logs/logger";
 
 function headersToWebHeaders(headers: Record<string, unknown>): Headers {
   const h = new Headers();
@@ -24,7 +25,7 @@ function headersToWebHeaders(headers: Record<string, unknown>): Headers {
 }
 
 export async function buildApp() {
-  const app = Fastify({ logger: true });
+  const app = Fastify({ logger: loggerOptions });
 
   await app.register(cors, {
     origin: [env.CORS_ORIGIN, "http://localhost:3000"],
