@@ -22,7 +22,12 @@ export default function HomePage() {
 
   return (
     <div className="auth-wrap">
-      <p className="muted">Loading CollabDesk…</p>
+      <div className="enter-lead text-center">
+        <div className="brand mb-2">
+          Collab<span>Desk</span>
+        </div>
+        <p className="text-sm text-muted-foreground">Opening your workspace…</p>
+      </div>
     </div>
   );
 }

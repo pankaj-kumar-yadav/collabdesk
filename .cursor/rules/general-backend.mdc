@@ -1,0 +1,79 @@
+---
+description: Backend defaults — pnpm, TypeScript practices, concise replies (apps/server)
+globs: apps/server/**
+alwaysApply: false
+---
+
+# General — Backend
+
+Follow this rule when working under `apps/server`. This is an Express + TypeScript API. There is no UI.
+
+## Communication
+
+- Concise output only, unless the user explicitly asks for a verbose answer.
+- Skip restating the task, padding, and unnecessary explanation.
+
+## Sub-agents
+
+Do **not** use sub-agents (Task / explore / generalPurpose / parallel agents) unless the user explicitly asks for them. They are expensive. Do the work yourself with normal tools.
+
+## Sibling apps
+
+When editing the frontend (`apps/web`), read `.cursor/rules/general-frontend.mdc` **before** changing it. Backend rules do not apply there; frontend rules do.
+
+## Verification
+
+- Do not open or drive the browser. It spends too many tokens.
+- Check with typecheck, tests, or a direct API call.
+- Use the browser only when the user explicitly asks.
+
+## Package manager
+
+**pnpm** is the package manager (`pnpm-lock.yaml` is the source of truth).
+
+- Install, add, remove, and update with `pnpm` only.
+- Run scripts with `pnpm` (`pnpm dev`, `pnpm build`, `pnpm start`).
+- Do not use `npm` or `yarn` unless the user explicitly asks.
+- Do not create or commit `package-lock.json` or `yarn.lock`.
+
+## Coding practices
+
+- **SOLID:** One responsibility per module. Keep dependency boundaries clear.
+- **Imports:** `@/` aliases (`@/config`, `@/utils/http/errors`). No relative imports and no `.js` suffix. `tsconfig` `paths` map `@/*` to `src/*`.
+- **Exports:** Named exports. `export default` only when a framework requires it.
+- **Type files:** No generic `types.ts` per feature. Use explicit names (e.g. `settlement-ledger-types.ts`).
+- **Helpers:** Keep single-use helpers next to the module that uses them. Lift only for real reuse.
+- **Early returns:** Guard invalid input and edge cases at the top. Keep the happy path linear.
+- **README naming:** Feature docs use `UPPERCASE_SNAKE_CASE` (e.g. `PAYMENT_FLOW_README.md`). Root stays `README.md`. Feature docs live under `src/lib/docs/` when that tree exists.
+
+## Folder grouping
+
+Group related modules by concern into theme folders. Keep a file flat only if it stands alone; otherwise nest it with its siblings.
+
+## Dates and timing
+
+Use **`date-fns`** + **`date-fns-tz`** via `@/utils/time/dates` when that module exists. Do not hand-roll calendar/timezone math.
+
+## Logging
+
+When adding or changing logs, follow `src/lib/docs/logs/LOGGING_README.md` when present (pino via `@/utils/logs/logger`).
+
+## Deploy
+
+When deploying or changing deploy config, read and follow the matching doc under `src/lib/docs/deploy/` when present. Do not invent host, folder, ports, or bucket schemes that contradict those docs.
+
+## Code safety
+
+Prefer `enum` or `as const` maps over magic strings and numbers for statuses, roles, routes, and other fixed sets.
+
+## Validation regexes
+
+Put shared format regexes in `src/constants/regex/*.constant.ts`. Group by theme; do not create one file per pattern or inline the same regex across schemas. Keep `apps/web` `constants/regex/` aligned when a format is shared.
+
+## List pagination
+
+Table-backed list APIs must paginate. Reuse `@/utils/pagination` + `@/constants/pagination` when present (`page` default 1, `pageSize` default 20 / max 100). Return the collection with `page`, `pageSize`, `total`, `lastPage`. Use `count` + `findMany({ skip, take })`. Same shape everywhere; document in OpenAPI when applicable.
+
+## Dangerous actions
+
+Deletes, wipes, and other hard-to-undo API actions need an explicit confirm (a required flag or a two-step call). Do not run them from a single unguarded request.

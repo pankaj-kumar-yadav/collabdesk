@@ -1,0 +1,150 @@
+---
+description: Frontend defaults — pnpm, coding practices, concise, UI, shadcn, safety (apps/web)
+globs: apps/web/**
+alwaysApply: false
+---
+
+# General — Frontend
+
+Refer to and follow this entire rule when working under `apps/web`. Do not skip sections.
+
+Full examples for coding practices live in `docs/CODING_PRACTICES.md` when present.
+
+## Communication
+
+- Always return concise output only, unless explicitly asked to be verbose.
+- Prefer pointed answers; skip restating the task, padding, or unnecessary explanation.
+- After a UI change, say what changed and where to look — nothing more.
+
+## Sibling apps
+
+When editing the backend (`apps/server`), read `.cursor/rules/general-backend.mdc` **before** changing it. Frontend rules do not apply there; backend rules do.
+
+## Package manager
+
+This project uses **pnpm** as the primary package manager (`pnpm-lock.yaml` is the source of truth).
+
+- Install, add, remove, and update packages with `pnpm` only (`pnpm install`, `pnpm add`, `pnpm remove`, `pnpm update`).
+- Run project scripts with `pnpm` (`pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm format`).
+- Do **not** use `npm` or `yarn` for installs or scripts unless the user explicitly asks.
+- Do not create or commit `package-lock.json` or `yarn.lock`.
+
+## Coding practices
+
+- **Props:** Always define a dedicated props type/interface (e.g. `ComponentNameProps`). Do **not** destructure in the function signature — use `props: ComponentNameProps`, then destructure inside the body.
+- **SOLID:** Design components and modules with single responsibility, open/closed, and clear dependency boundaries.
+- **Imports:** Prefer the `@` alias; avoid deep relative paths (`../../../`).
+- **README naming:** Module- or feature-specific README files use **UPPERCASE_SNAKE_CASE** (e.g. `PAYMENT_FLOW_README.md`). Root stays `README.md`.
+- **Extract sections:** For distinct UI sections, extract a helper component in the **same file** (below the main export) instead of long inline JSX.
+- **Early returns:** Guard invalid inputs and edge cases at the top; avoid deep `if`/`else` nesting so the happy path stays linear.
+- **`cn`:** Use `cn` from `@/lib/utils` for all non-trivial `className` composition (conditionals, variants, merging parent `className`). No string concatenation or template-literal class builds.
+- **Exports:** Prefer **named exports**. Use `export default` only when the framework requires it (e.g. Next.js `page.tsx`, `layout.tsx`).
+- **Type files:** Do not use generic `types.ts` for feature modules. Use explicit names (e.g. `settlement-ledger-types.ts`).
+- **Colocate helpers:** Keep single-use handlers/helpers next to the component that uses them. Lift only for clear reuse or cross-component dependency.
+
+## Folder grouping / feature modules
+
+Group related modules by concern into theme folders. Keep a file flat only if it stands alone; otherwise nest it with its siblings.
+
+When a feature file grows (many distinct UI roles or ~300–400+ lines), turn it into a **module folder**:
+
+- **Split by responsibility / UI role** (e.g. header, body, footer, dialog) — not into generic dump files like `types.ts` or `utils.ts`.
+- **Prefix filenames and exports with the module name** so they stay clear next to sibling modules.
+- **Colocate helpers** with the only consumer. Lift to shared only when **two or more** files need them.
+- **Public types** live on the main entry (or with the feature that owns them); re-export from `index.ts`.
+- **Imports:** always `@/…`, including inside the module. Callers import the folder entry (`@/…/module-name`), not deep internals, unless a specific piece is intentional.
+- Keep a **stable public API** via `index.ts` so internal refactors do not churn call sites.
+
+## Code safety
+
+Prefer `enum` or `const` (e.g. `as const` objects / const maps) over magic strings and numbers where it adds type safety — status values, routes, roles, keys, and other fixed sets.
+
+## Validation regexes
+
+Put shared format regexes in `constants/regex/*.constant.ts`. Group by theme; do not create one file per pattern or inline the same regex across modules. Keep `apps/server` `src/constants/regex/` aligned when a format is shared.
+
+## List tables — server pagination
+
+API-backed tables: URL `page`/`size` (nuqs, 10/25/50) → list `*PageQuery` → `StyledTable` with `serverTotalRows={total}`. Pass API filters from the URL; keep filter options static/enums. No client slice of a full fetch and no fake `pageSize=100` on primary tables. Mock-only tables may stay client-paged.
+
+## Dangerous actions — confirmation
+
+- Destructive / hard-to-undo actions (deactivate, delete, wipe demo data) need an `AlertDialog` — never one-click.
+- Deactivate / delete a named entity: typed confirm; disable until the phrase matches; clear on close.
+- Deactivate phrase: `deactivate {name}`. Delete phrase: `{name}` (unless that flow already has a stronger phrase).
+- Soft recoveries (reactivate) stay one-click. Lower-stakes danger (Reset demo) may use Cancel + confirm without typing.
+- Reuse existing patterns in the codebase; do not invent a second confirm UI.
+
+## Form fields — required + info
+
+Every form field label must show:
+
+- A required asterisk (`*`) when the field is required to continue or submit.
+- An info control (icon + tooltip) when the field needs a short explanation of what to enter or how it is used.
+
+Info (and field validation) copy lives under `constants/form-field-info/`, one file per form section. Shared copy that spans flows goes in `shared.ts`. Do not dump all forms into a single file. Use `as const` maps; no inline magic strings for field info. Pass the constant into the field’s `info` prop (or equivalent). Keep live validation messages (e.g. format errors) separate from info tooltips, in the same section file when they belong to that step.
+
+## UI changes
+
+For any UI change, read and follow the `emil-design-eng` skill (`.agents/skills/emil-design-eng/SKILL.md`) first, then proceed. Do not implement UI work without consulting it.
+
+## Shadows
+
+When a component needs lift or separation from the surface, prefer a **general-use subtle shadow** — e.g. Tailwind `shadow-xs` / `shadow-sm`, or the shadow already on the matching shadcn control — not heavy, stacked, or glow-like shadows.
+
+- **Confirm with `emil-design-eng` first** before adding or changing any shadow. If the skill (or existing shadcn patterns) say a border/ring is enough, skip the shadow.
+- Prefer inheriting shadows from `components/ui` primitives (dialog, popover, select, sheet, button) over inventing new shadow stacks on screen layout.
+- Do not add shadows to dense table rows, every card by default, or high-frequency hover targets just for decoration.
+
+## UI components — shadcn
+
+Use shadcn/ui for interface controls. This project’s style is `base-vega` (`components.json`). Installed components live in `components/ui`.
+
+- Before building a control, use the matching component in `components/ui`. If it is missing, add it with `pnpm dlx shadcn@latest add <name>`. Do not hand-roll a second version of a component shadcn already ships.
+- Cover as much of the UI as those components allow: buttons, inputs, selects, date pickers, dialogs, sheets, dropdown menus, popovers, tooltips, badges, separators, and the rest of the registry.
+- Dropdowns use `Select` (`components/ui/select`). Dates use `DatePicker` (`components/ui/date-picker`, built from Popover and Calendar).
+- Compose screens from these components. Custom markup is for layout and for domain pieces the registry does not cover.
+
+## Typography — numbers
+
+When a UI element shows **only numbers** (counts, KPIs, currency amounts, IDs, quantities, percentages, tabular columns of figures), use **tabular nums** so digits align and don’t shift layout as values change.
+
+- Prefer Tailwind `tabular-nums` (or `font-variant-numeric: tabular-nums`).
+- Apply on the element that renders the number, not on mixed prose that happens to include a digit.
+- Skip for incidental numbers inside sentences (e.g. “Order placed 2 days ago”).
+
+## Number inputs
+
+Number inputs must not show the browser stepper (the up/down arrows).
+
+- Hide the spinner on every `input[type="number"]` in `app/globals.css` (`appearance: textfield` plus the WebKit spin-button pseudo-elements). Do not restyle it per field.
+- Keep `type="number"` (and `inputMode`) so mobile keyboards stay numeric. Users change the value by typing.
+- Do not add custom stepper buttons unless a flow explicitly needs them.
+
+## Micro-interactions
+
+Prefer **subtle** micro-interactions with the **`motion`** library (`motion/react` — Framer Motion). Do not invent a second animation stack or add `framer-motion` separately.
+
+- Use motion for state-change feedback: press, hover settle, overlay enter/exit, step transitions, list item appear/dismiss.
+- Skip animation for high-frequency actions (keyboard shortcuts, rapid toggles, dense table row hover). Prefer CSS for simple color/opacity hovers when Motion adds no value.
+- Keep motion short and quiet (~120–220ms, ease-out or soft ease like `[0.23, 1, 0.32, 1]`). Avoid long, bouncy, or attention-seeking effects unless rare and intentional.
+- Animate `opacity` / `transform`; avoid layout props unless necessary. Use `AnimatePresence` for mount/unmount with short exits.
+- Always respect reduced motion via `useReducedMotion()` — skip or collapse to instant/opacity-only when preferred.
+- Import from `motion/react`. For non-trivial motion design, follow the `animate` skill.
+
+## Mock data loading — skeletons + delay
+
+When a screen is a clickable mock (`localStorage` / seed data): instant paint looks unfinished; always show loading UI for mock screens.
+
+- Use `useMockLoading()` from `hooks/use-mock-loading.ts` when that hook exists — random delay **500–1500ms** after client hydrate (`MOCK_LOAD_DELAY_MS`).
+- Do **not** invent a second delay range or hard-code `setTimeout` for mock latency; extend that hook/constants if needed.
+- **Tables**: pass `loading={useMockLoading()}` (or a shared parent `loading`) into `StyledTable` / `HeadlessTable` so the skeleton stays **inside** the table frame (toolbar + rows + pagination). Use `components/table/table-skeleton.tsx` — do not replace the table with a bare “Loading…” string.
+- **Other surfaces** (stat cards, detail pages, setup gates): use `Skeleton` (`components/ui/skeleton.tsx`, fast shimmer) or `PageSkeleton` / `DetailPageSkeleton` (`components/page-skeleton.tsx`) for the same delay.
+- When one screen owns several blocks (e.g. dashboard stats + table), drive **one** `useMockLoading()` and pass `loading` down so they resolve together.
+- Toasts for mock mutations use **Sonner** (`toast` from `sonner`, `<Toaster />` in root layout via `components/ui/sonner.tsx`).
+
+## Skip browser checks
+
+Do not open the browser, take screenshots, or click through the app to verify a change. The user checks the UI themselves.
+
+Do not start the dev server for a visual check.

@@ -3,11 +3,35 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Editor, { OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
+import { useTheme } from "next-themes";
 import * as Y from "yjs";
 import { MonacoBinding } from "y-monaco";
 import type { ConnectionStatus } from "@collabdesk/shared";
 import { getToken, getWsUrl } from "@/lib/api";
 import { CollabWebsocketProvider } from "@/lib/y-websocket";
+
+function applyMonacoTheme(monaco: typeof Monaco, mode: "light" | "dark") {
+  if (mode === "light") {
+    monaco.editor.defineTheme("collabdesk", {
+      base: "vs",
+      inherit: true,
+      rules: [],
+      colors: {
+        "editor.background": "#ffffff",
+      },
+    });
+  } else {
+    monaco.editor.defineTheme("collabdesk", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [],
+      colors: {
+        "editor.background": "#0f1419",
+      },
+    });
+  }
+  monaco.editor.setTheme("collabdesk");
+}
 
 type PresenceUser = {
   clientId: number;
@@ -27,6 +51,7 @@ export function CollaborativeEditor({
   readOnly?: boolean;
   onReadOnlyChange?: (readOnly: boolean) => void;
 }) {
+  const { resolvedTheme } = useTheme();
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [presence, setPresence] = useState<PresenceUser[]>([]);
   const [canWrite, setCanWrite] = useState(true);
@@ -35,6 +60,7 @@ export function CollaborativeEditor({
   const monacoRef = useRef<typeof Monaco | null>(null);
   const bindingRef = useRef<MonacoBinding | null>(null);
   const decorationsRef = useRef<string[]>([]);
+  const editorTheme = resolvedTheme === "light" ? "light" : "dark";
 
   const { doc, yText, provider } = useMemo(() => {
     const doc = new Y.Doc();
@@ -149,6 +175,12 @@ export function CollaborativeEditor({
     };
   }, [doc, onReadOnlyChange, provider]);
 
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco) return;
+    applyMonacoTheme(monaco, editorTheme);
+  }, [editorTheme]);
+
   const onMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
@@ -162,15 +194,8 @@ export function CollaborativeEditor({
       provider.awareness,
     );
 
-    monaco.editor.defineTheme("collabdesk", {
-      base: "vs-dark",
-      inherit: true,
-      rules: [],
-      colors: {
-        "editor.background": "#0f1419",
-      },
-    });
-    monaco.editor.setTheme("collabdesk");
+    const mode = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    applyMonacoTheme(monaco, mode);
 
     const styleId = "collabdesk-remote-style";
     if (!document.getElementById(styleId)) {
@@ -217,17 +242,25 @@ export function CollaborativeEditor({
   return (
     <div className="editor-pane">
       <div className="editor-toolbar">
-        <div>
-          <strong>{fileName}</strong>
-          {locked ? <span className="muted"> · read-only</span> : null}
+        <div className="min-w-0">
+          <p className="truncate font-mono text-sm font-medium tracking-tight">
+            {fileName}
+          </p>
+          {locked ? (
+            <p className="text-xs text-muted-foreground">Read-only for your role</p>
+          ) : null}
         </div>
-        <div className="status-pill">
+        <div className="status-pill" aria-live="polite">
           <span className={`status-dot ${dotClass}`} />
-          {status}
+          <span className="capitalize">{status}</span>
         </div>
       </div>
-      {error ? <p className="error" style={{ padding: "0 0.85rem" }}>{error}</p> : null}
-      <div style={{ flex: 1, minHeight: 420 }}>
+      {error ? (
+        <p className="border-b border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+      <div className="min-h-0 flex-1">
         <Editor
           height="100%"
           language={language}
@@ -239,19 +272,36 @@ export function CollaborativeEditor({
             fontFamily: "IBM Plex Mono, monospace",
             fontSize: 14,
             automaticLayout: true,
+            padding: { top: 12, bottom: 12 },
+            scrollBeyondLastLine: false,
+            smoothScrolling: true,
+            cursorBlinking: "smooth",
+            renderLineHighlight: "line",
           }}
         />
       </div>
-      <div className="presence" style={{ borderLeft: "none", borderTop: "1px solid var(--line)" }}>
-        <strong>Connected</strong>
-        <div style={{ marginTop: "0.75rem" }}>
-          {presence.map((u) => (
-            <div className="presence-row" key={`${u.clientId}-${u.id}`}>
-              <span className="swatch" style={{ background: u.color }} />
-              <span>{u.name}</span>
-            </div>
-          ))}
+      <div className="border-t border-border/80 bg-background/50 px-3 py-2.5">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-xs font-medium text-muted-foreground">Presence</p>
+          <p className="text-xs text-muted-foreground">
+            {presence.length} online
+          </p>
         </div>
+        {presence.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Waiting for collaborators…</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {presence.map((u) => (
+              <div
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card px-2 py-1 text-xs"
+                key={`${u.clientId}-${u.id}`}
+              >
+                <span className="swatch" style={{ background: u.color }} />
+                <span className="max-w-[8rem] truncate">{u.name}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
