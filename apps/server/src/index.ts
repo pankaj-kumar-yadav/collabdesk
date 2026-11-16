@@ -1,7 +1,7 @@
-import { buildApp } from "./app.js";
-import { env } from "./env.js";
-import { closeAllRooms } from "./yjs/rooms.js";
-import { prisma } from "./db.js";
+import { buildApp } from "@/app";
+import { env } from "@/env";
+import { closeAllRooms } from "@/yjs/rooms";
+import { prisma } from "@/db";
 
 const app = await buildApp();
 

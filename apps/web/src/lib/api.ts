@@ -8,7 +8,7 @@ export function getWsUrl() {
   return process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:4000/ws";
 }
 
-const TOKEN_KEY = "collabdesk_token";
+const TOKEN_KEY = "collabdesk_token" as const;
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;

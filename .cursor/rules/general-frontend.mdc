@@ -8,7 +8,7 @@ alwaysApply: false
 
 Refer to and follow this entire rule when working under `apps/web`. Do not skip sections.
 
-Full examples for coding practices live in `docs/CODING_PRACTICES.md` when present.
+Full examples for coding practices live in `docs/CODING_PRACTICES.md`. Follow that doc together with this rule.
 
 ## Communication
 
@@ -30,6 +30,8 @@ This project uses **pnpm** as the primary package manager (`pnpm-lock.yaml` is t
 - Do not create or commit `package-lock.json` or `yarn.lock`.
 
 ## Coding practices
+
+See `docs/CODING_PRACTICES.md` for full examples of the practices below.
 
 - **Props:** Always define a dedicated props type/interface (e.g. `ComponentNameProps`). Do **not** destructure in the function signature — use `props: ComponentNameProps`, then destructure inside the body.
 - **SOLID:** Design components and modules with single responsibility, open/closed, and clear dependency boundaries.

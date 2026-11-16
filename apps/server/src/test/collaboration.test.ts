@@ -8,9 +8,9 @@ import {
   registerAndLogin,
   startTestServer,
   stopTestServer,
-} from "./helpers.js";
-import { prisma } from "../db.js";
-import { closeAllRooms } from "../yjs/rooms.js";
+} from "@/test/helpers";
+import { prisma } from "@/db";
+import { closeAllRooms } from "@/yjs/rooms";
 
 function foundRemote(client: TestYClient, userId: string) {
   let found = false;

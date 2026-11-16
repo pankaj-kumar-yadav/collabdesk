@@ -8,8 +8,8 @@ import {
   WS_CONTROL,
 } from "@collabdesk/shared";
 import { randomBytes } from "node:crypto";
-import { prisma } from "../db.js";
-import { logActivity, logError } from "../logging.js";
+import { prisma } from "@/db";
+import { logActivity, logError } from "@/logging";
 import {
   HttpError,
   requireFileAccess,
@@ -17,14 +17,14 @@ import {
   requireManageMembers,
   requireMembership,
   requireWriteAccess,
-} from "../permissions.js";
+} from "@/permissions";
 import {
   broadcastControl,
   broadcastWorkspaceControl,
   refreshClientRoleInWorkspace,
   replaceRoomDocFromState,
-} from "../yjs/rooms.js";
-import { listSnapshots, restoreSnapshot } from "../yjs/persistence.js";
+} from "@/yjs/rooms";
+import { listSnapshots, restoreSnapshot } from "@/yjs/persistence";
 
 function handleError(error: unknown, reply: { status: (code: number) => { send: (body: unknown) => unknown } }) {
   if (error instanceof HttpError) {
@@ -247,6 +247,10 @@ export async function workspaceRoutes(app: FastifyInstance) {
         workspaceId: string;
         memberId: string;
       };
+      const query = request.query as { confirm?: string };
+      if (query.confirm !== "true") {
+        throw new HttpError(400, "Pass confirm=true to remove a member");
+      }
       await requireManageMembers(workspaceId, user.id);
       const member = await prisma.workspaceMember.findFirst({
         where: { id: memberId, workspaceId },
@@ -317,6 +321,10 @@ export async function workspaceRoutes(app: FastifyInstance) {
     try {
       const user = request.user!;
       const { fileId } = request.params as { fileId: string };
+      const query = request.query as { confirm?: string };
+      if (query.confirm !== "true") {
+        throw new HttpError(400, "Pass confirm=true to delete a file");
+      }
       const { file } = await requireFileWriteAccess(fileId, user.id);
       await prisma.documentFile.update({
         where: { id: file.id },
@@ -437,10 +445,11 @@ export async function workspaceRoutes(app: FastifyInstance) {
   });
 
   app.setErrorHandler(async (error, request, reply) => {
+    const message = error instanceof Error ? error.message : "Unknown error";
     await logError({
       userId: request.user?.id,
       code: "request_error",
-      message: error.message,
+      message,
       meta: { url: request.url },
     });
     if (error instanceof HttpError) {

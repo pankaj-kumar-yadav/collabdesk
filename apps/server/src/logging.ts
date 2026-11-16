@@ -1,4 +1,5 @@
-import { prisma } from "./db.js";
+import type { Prisma } from "@prisma/client";
+import { prisma } from "@/db";
 
 export async function logActivity(input: {
   userId?: string | null;
@@ -6,7 +7,7 @@ export async function logActivity(input: {
   fileId?: string | null;
   type: string;
   message: string;
-  meta?: Record<string, unknown>;
+  meta?: Prisma.InputJsonValue;
 }) {
   try {
     await prisma.activityEvent.create({
@@ -30,7 +31,7 @@ export async function logError(input: {
   fileId?: string | null;
   code: string;
   message: string;
-  meta?: Record<string, unknown>;
+  meta?: Prisma.InputJsonValue;
 }) {
   try {
     await prisma.errorEvent.create({

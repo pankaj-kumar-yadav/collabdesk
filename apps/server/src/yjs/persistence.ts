@@ -1,6 +1,6 @@
 import * as Y from "yjs";
-import { prisma } from "../db.js";
-import { env } from "../env.js";
+import { prisma } from "@/db";
+import { env } from "@/env";
 
 export async function loadDocument(fileId: string): Promise<{
   doc: Y.Doc;

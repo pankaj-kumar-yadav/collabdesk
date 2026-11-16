@@ -166,6 +166,17 @@
   button {
     cursor: pointer;
   }
+
+  /* Hide number input steppers globally — type stays number for mobile keyboards */
+  input[type="number"] {
+    appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }
 
 .shell {

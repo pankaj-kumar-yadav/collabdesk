@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { APP_ROUTES } from "@/constants/app-routes.constant";
 import { authClient } from "@/lib/auth-client";
 import { getToken } from "@/lib/api";
 
@@ -11,12 +12,12 @@ export default function HomePage() {
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.replace("/login");
+      router.replace(APP_ROUTES.LOGIN);
       return;
     }
     authClient.getSession().then(({ data }) => {
-      if (data?.user) router.replace("/workspaces");
-      else router.replace("/login");
+      if (data?.user) router.replace(APP_ROUTES.WORKSPACES);
+      else router.replace(APP_ROUTES.LOGIN);
     });
   }, [router]);
 

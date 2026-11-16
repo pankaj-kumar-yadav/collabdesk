@@ -8,10 +8,10 @@ import * as syncProtocol from "y-protocols/sync";
 import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import { performance } from "node:perf_hooks";
-import { buildApp } from "../src/app.js";
-import { prisma } from "../src/db.js";
-import { closeAllRooms } from "../src/yjs/rooms.js";
-import { registerAndLogin, apiJson, cleanupTestData } from "../src/test/helpers.js";
+import { buildApp } from "@/app";
+import { prisma } from "@/db";
+import { closeAllRooms } from "@/yjs/rooms";
+import { registerAndLogin, apiJson, cleanupTestData } from "@/test/helpers";
 
 const CLIENTS = Number(process.env.LOAD_CLIENTS ?? 20);
 const EDITS_PER_CLIENT = Number(process.env.LOAD_EDITS ?? 10);

@@ -7,7 +7,10 @@ import { ArrowRight, Files, Plus, Ticket, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import type { WorkspaceRow } from "@/lib/workspace-types";
-import { Badge } from "@/components/ui/badge";
+import { APP_ROUTES } from "@/constants/app-routes.constant";
+import { WORKSPACES_FORM_FIELD_INFO } from "@/constants/form-field-info/workspaces";
+import { FormFieldLabel } from "@/components/form-field-label";
+import { RoleBadge } from "@/components/role-badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -16,17 +19,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 export default function WorkspacesPage() {
   const router = useRouter();
   const [rows, setRows] = useState<WorkspaceRow[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [name, setName] = useState("");
-  const [inviteToken, setInviteToken] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [joining, setJoining] = useState(false);
 
   async function refresh() {
     const data = await api<WorkspaceRow[]>("/workspaces");
@@ -36,58 +43,40 @@ export default function WorkspacesPage() {
   useEffect(() => {
     authClient.getSession().then(({ data }) => {
       if (!data?.user) {
-        router.replace("/login");
+        router.replace(APP_ROUTES.LOGIN);
         return;
       }
       refresh().catch((e) => setError(e.message));
     });
   }, [router]);
 
-  async function createWorkspace(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setCreating(true);
-    try {
-      const ws = await api<{ id: string }>("/workspaces", {
-        method: "POST",
-        body: JSON.stringify({ name }),
-      });
-      setName("");
-      await refresh();
-      router.push(`/workspaces/${ws.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create workspace");
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function acceptInvite(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setJoining(true);
-    try {
-      const member = await api<{ workspaceId: string }>(
-        `/invitations/${inviteToken.trim()}/accept`,
-        { method: "POST", body: JSON.stringify({}) },
-      );
-      setInviteToken("");
-      await refresh();
-      router.push(`/workspaces/${member.workspaceId}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to join workspace");
-    } finally {
-      setJoining(false);
-    }
-  }
-
   return (
     <div className="flex-1 overflow-auto p-4 md:p-6">
-      <div className="enter-lead mb-8 max-w-2xl">
-        <h1 className="text-2xl font-semibold tracking-tight">Home</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Create a workspace, join with an invite, or open one you already have.
-        </p>
+      <div className="enter-lead mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-2xl">
+          <h1 className="text-2xl font-semibold tracking-tight">Home</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Open a workspace you already have, or create / join a new one.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <JoinWorkspaceDialog
+            onJoined={async (workspaceId) => {
+              setError(null);
+              await refresh();
+              router.push(APP_ROUTES.workspace(workspaceId));
+            }}
+            onError={setError}
+          />
+          <CreateWorkspaceDialog
+            onCreated={async (workspaceId) => {
+              setError(null);
+              await refresh();
+              router.push(APP_ROUTES.workspace(workspaceId));
+            }}
+            onError={setError}
+          />
+        </div>
       </div>
 
       {error ? (
@@ -95,70 +84,6 @@ export default function WorkspacesPage() {
           {error}
         </p>
       ) : null}
-
-      <div className="enter-support mb-10 grid gap-4 md:grid-cols-2">
-        <Card className="border-border/80 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="flex size-7 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Plus className="size-3.5" />
-              </span>
-              New workspace
-            </CardTitle>
-            <CardDescription>
-              Start a fresh collaborative space for your team.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={createWorkspace} className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="ws-name">Name</Label>
-                <Input
-                  id="ws-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Product eng"
-                  required
-                />
-              </div>
-              <Button type="submit" disabled={creating}>
-                {creating ? "Creating…" : "Create workspace"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/80 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="flex size-7 items-center justify-center rounded-md bg-secondary text-foreground">
-                <Ticket className="size-3.5" />
-              </span>
-              Join with invite
-            </CardTitle>
-            <CardDescription>
-              Paste an invite token to join an existing workspace.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={acceptInvite} className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="invite-token">Invite token</Label>
-                <Input
-                  id="invite-token"
-                  value={inviteToken}
-                  onChange={(e) => setInviteToken(e.target.value)}
-                  placeholder="Paste token"
-                  required
-                />
-              </div>
-              <Button type="submit" variant="secondary" disabled={joining}>
-                {joining ? "Joining…" : "Join workspace"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
 
       <div className="mb-4">
         <h2 className="text-lg font-medium tracking-tight">Your workspaces</h2>
@@ -168,11 +93,11 @@ export default function WorkspacesPage() {
       </div>
 
       {rows.length > 0 ? (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="enter-support grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((row) => (
             <Link
               key={row.id}
-              href={`/workspaces/${row.id}`}
+              href={APP_ROUTES.workspace(row.id)}
               className="pressable pressable-lift block rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
               <Card className="h-full border-border/80 shadow-sm transition-[border-color] duration-150">
@@ -181,7 +106,7 @@ export default function WorkspacesPage() {
                     <CardTitle className="text-base tracking-tight">
                       {row.name}
                     </CardTitle>
-                    <Badge variant="secondary">{row.role}</Badge>
+                    <RoleBadge role={row.role} />
                   </div>
                   <CardDescription className="flex items-center gap-1">
                     Open workspace
@@ -189,11 +114,11 @@ export default function WorkspacesPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex gap-4 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1 tabular-nums">
                     <Users className="size-3.5" />
                     {row.memberCount} members
                   </span>
-                  <span className="inline-flex items-center gap-1">
+                  <span className="inline-flex items-center gap-1 tabular-nums">
                     <Files className="size-3.5" />
                     {row.fileCount} files
                   </span>
@@ -207,11 +132,183 @@ export default function WorkspacesPage() {
           <CardHeader>
             <CardTitle className="text-base">No workspaces yet</CardTitle>
             <CardDescription>
-              Create one above, or join with an invite token.
+              Use New workspace or Join invite above to get started.
             </CardDescription>
           </CardHeader>
         </Card>
       ) : null}
     </div>
+  );
+}
+
+type CreateWorkspaceDialogProps = {
+  onCreated: (workspaceId: string) => Promise<void>;
+  onError: (message: string) => void;
+};
+
+function CreateWorkspaceDialog(props: CreateWorkspaceDialogProps) {
+  const { onCreated, onError } = props;
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) setName("");
+  }
+
+  async function createWorkspace(e: FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    try {
+      const ws = await api<{ id: string }>("/workspaces", {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      });
+      handleOpenChange(false);
+      await onCreated(ws.id);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to create workspace");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button type="button" className="gap-1.5">
+          <Plus className="size-4" />
+          New workspace
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>New workspace</DialogTitle>
+          <DialogDescription>
+            Start a fresh collaborative space for your team.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={createWorkspace} className="space-y-4">
+          <div className="space-y-2">
+            <FormFieldLabel
+              htmlFor="ws-name"
+              required
+              info={WORKSPACES_FORM_FIELD_INFO.workspaceName}
+            >
+              Name
+            </FormFieldLabel>
+            <Input
+              id="ws-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Product eng"
+              required
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={creating || !name.trim()}>
+              {creating ? "Creating…" : "Create workspace"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+type JoinWorkspaceDialogProps = {
+  onJoined: (workspaceId: string) => Promise<void>;
+  onError: (message: string) => void;
+};
+
+function JoinWorkspaceDialog(props: JoinWorkspaceDialogProps) {
+  const { onJoined, onError } = props;
+  const [open, setOpen] = useState(false);
+  const [inviteToken, setInviteToken] = useState("");
+  const [joining, setJoining] = useState(false);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) setInviteToken("");
+  }
+
+  async function acceptInvite(e: FormEvent) {
+    e.preventDefault();
+    setJoining(true);
+    try {
+      const member = await api<{ workspaceId: string }>(
+        `/invitations/${inviteToken.trim()}/accept`,
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      handleOpenChange(false);
+      await onJoined(member.workspaceId);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Failed to join workspace");
+    } finally {
+      setJoining(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="outline" className="gap-1.5">
+          <Ticket className="size-4" />
+          Join invite
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Join with invite</DialogTitle>
+          <DialogDescription>
+            Paste an invite token to join an existing workspace.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={acceptInvite} className="space-y-4">
+          <div className="space-y-2">
+            <FormFieldLabel
+              htmlFor="invite-token"
+              required
+              info={WORKSPACES_FORM_FIELD_INFO.inviteToken}
+            >
+              Invite token
+            </FormFieldLabel>
+            <Input
+              id="invite-token"
+              value={inviteToken}
+              onChange={(e) => setInviteToken(e.target.value)}
+              placeholder="Paste token"
+              required
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={joining || !inviteToken.trim()}
+            >
+              {joining ? "Joining…" : "Join workspace"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

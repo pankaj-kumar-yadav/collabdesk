@@ -5,10 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useBreadcrumbTrail } from "@/components/breadcrumb-context";
 import { CollaborativeEditor } from "@/components/CollaborativeEditor";
 import { WorkspaceFilesSidebar } from "@/components/WorkspaceFilesSidebar";
+import { APP_ROUTES } from "@/constants/app-routes.constant";
 import { api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import type {
   FileRow,
+  InviteRole,
   Snapshot,
   WorkspaceDetail,
 } from "@/lib/workspace-types";
@@ -20,9 +22,8 @@ export default function WorkspacePage() {
   const { setTrail } = useBreadcrumbTrail();
   const [data, setData] = useState<WorkspaceDetail | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [fileName, setFileName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"editor" | "viewer">("editor");
+  const [inviteRole, setInviteRole] = useState<InviteRole>("editor");
   const [inviteResult, setInviteResult] = useState<string | null>(null);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +42,7 @@ export default function WorkspacePage() {
   useEffect(() => {
     authClient.getSession().then(({ data: session }) => {
       if (!session?.user) {
-        router.replace("/login");
+        router.replace(APP_ROUTES.LOGIN);
         return;
       }
       refresh().catch((e) => setError(e.message));
@@ -68,27 +69,27 @@ export default function WorkspacePage() {
       .catch(() => setSnapshots([]));
   }, [activeFileId]);
 
-  async function createFile(e: FormEvent) {
-    e.preventDefault();
+  async function createFile(name: string) {
     try {
       const file = await api<FileRow>(`/workspaces/${workspaceId}/files`, {
         method: "POST",
-        body: JSON.stringify({ name: fileName }),
+        body: JSON.stringify({ name }),
       });
-      setFileName("");
       await refresh();
       setActiveFileId(file.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create file");
+      throw err;
     }
   }
 
-  async function renameFile() {
-    if (!activeFile) return;
-    const next = window.prompt("Rename file", activeFile.name);
-    if (!next || next === activeFile.name) return;
+  async function renameFile(fileId: string, nextName: string) {
+    const file = data?.files.find((f) => f.id === fileId);
+    if (!file) return;
+    const next = nextName.trim();
+    if (!next || next === file.name) return;
     try {
-      await api(`/files/${activeFile.id}`, {
+      await api(`/files/${file.id}`, {
         method: "PATCH",
         body: JSON.stringify({ name: next }),
       });
@@ -98,12 +99,10 @@ export default function WorkspacePage() {
     }
   }
 
-  async function deleteFile() {
-    if (!activeFile) return;
-    if (!window.confirm(`Delete ${activeFile.name}?`)) return;
+  async function deleteFile(fileId: string) {
     try {
-      await api(`/files/${activeFile.id}`, { method: "DELETE" });
-      setActiveFileId(null);
+      await api(`/files/${fileId}?confirm=true`, { method: "DELETE" });
+      setActiveFileId((current) => (current === fileId ? null : current));
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
@@ -127,7 +126,7 @@ export default function WorkspacePage() {
     }
   }
 
-  async function changeRole(memberId: string, role: "editor" | "viewer") {
+  async function changeRole(memberId: string, role: InviteRole) {
     try {
       await api(`/workspaces/${workspaceId}/members/${memberId}`, {
         method: "PATCH",
@@ -175,11 +174,9 @@ export default function WorkspacePage() {
         activeFileId={activeFileId}
         members={data.members}
         snapshots={snapshots}
-        fileName={fileName}
         inviteEmail={inviteEmail}
         inviteRole={inviteRole}
         inviteResult={inviteResult}
-        onFileNameChange={setFileName}
         onInviteEmailChange={setInviteEmail}
         onInviteRoleChange={setInviteRole}
         onSelectFile={setActiveFileId}

@@ -1,6 +1,6 @@
 import type { Role } from "@prisma/client";
 import { canManageFiles, canManageMembers, canWrite } from "@collabdesk/shared";
-import { prisma } from "./db.js";
+import { prisma } from "@/db";
 
 export class HttpError extends Error {
   statusCode: number;

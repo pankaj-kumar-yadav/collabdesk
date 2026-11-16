@@ -1,14 +1,16 @@
+import type { Role } from "@collabdesk/shared";
+
 export type WorkspaceRow = {
   id: string;
   name: string;
-  role: string;
+  role: Role;
   memberCount: number;
   fileCount: number;
 };
 
 export type Member = {
   id: string;
-  role: string;
+  role: Role;
   user: { id: string; name: string; email: string };
 };
 
@@ -20,9 +22,11 @@ export type FileRow = {
 export type WorkspaceDetail = {
   id: string;
   name: string;
-  myRole: string;
+  myRole: Role;
   members: Member[];
   files: FileRow[];
 };
 
 export type Snapshot = { id: string; version: number; createdAt: string };
+
+export type InviteRole = Extract<Role, "editor" | "viewer">;

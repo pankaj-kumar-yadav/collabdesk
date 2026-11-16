@@ -8,7 +8,13 @@ export const metadata: Metadata = {
   description: "Real-time collaborative code editor for desktop",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+type RootLayoutProps = {
+  children: React.ReactNode;
+};
+
+export default function RootLayout(props: RootLayoutProps) {
+  const { children } = props;
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

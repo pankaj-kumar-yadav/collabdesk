@@ -6,7 +6,9 @@ alwaysApply: false
 
 # General — Backend
 
-Follow this rule when working under `apps/server`. This is an Express + TypeScript API. There is no UI.
+Follow this rule when working under `apps/server`. This is a Fastify + TypeScript API. There is no UI.
+
+Full examples for shared coding practices live in `docs/CODING_PRACTICES.md`. Follow that doc together with this rule (props/exports/imports/naming where they apply on the server).
 
 ## Communication
 
@@ -37,6 +39,8 @@ When editing the frontend (`apps/web`), read `.cursor/rules/general-frontend.mdc
 - Do not create or commit `package-lock.json` or `yarn.lock`.
 
 ## Coding practices
+
+See `docs/CODING_PRACTICES.md` for shared examples (exports, imports, naming, early returns).
 
 - **SOLID:** One responsibility per module. Keep dependency boundaries clear.
 - **Imports:** `@/` aliases (`@/config`, `@/utils/http/errors`). No relative imports and no `.js` suffix. `tsconfig` `paths` map `@/*` to `src/*`.

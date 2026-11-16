@@ -4,6 +4,9 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModeToggle } from "@/components/ModeToggle";
+import { FormFieldLabel } from "@/components/form-field-label";
+import { AUTH_FORM_FIELD_INFO } from "@/constants/form-field-info/auth";
+import { APP_ROUTES } from "@/constants/app-routes.constant";
 import { authClient } from "@/lib/auth-client";
 import { setToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -16,7 +19,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,7 +41,7 @@ export default function LoginPage() {
     const token = session.data?.session?.token;
     if (token) setToken(token);
     setLoading(false);
-    router.replace("/workspaces");
+    router.replace(APP_ROUTES.WORKSPACES);
   }
 
   return (
@@ -67,7 +69,13 @@ export default function LoginPage() {
               </p>
             ) : null}
             <div className="space-y-2">
-              <Label htmlFor="login-email">Email</Label>
+              <FormFieldLabel
+                htmlFor="login-email"
+                required
+                info={AUTH_FORM_FIELD_INFO.loginEmail}
+              >
+                Email
+              </FormFieldLabel>
               <Input
                 id="login-email"
                 type="email"
@@ -79,7 +87,13 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="login-password">Password</Label>
+              <FormFieldLabel
+                htmlFor="login-password"
+                required
+                info={AUTH_FORM_FIELD_INFO.loginPassword}
+              >
+                Password
+              </FormFieldLabel>
               <Input
                 id="login-password"
                 type="password"
@@ -98,7 +112,7 @@ export default function LoginPage() {
           <p className="text-sm text-muted-foreground">
             No account?{" "}
             <Link
-              href="/register"
+              href={APP_ROUTES.REGISTER}
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               Register

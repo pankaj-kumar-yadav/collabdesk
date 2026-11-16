@@ -9,6 +9,27 @@ import { MonacoBinding } from "y-monaco";
 import type { ConnectionStatus } from "@collabdesk/shared";
 import { getToken, getWsUrl } from "@/lib/api";
 import { CollabWebsocketProvider } from "@/lib/y-websocket";
+import { cn } from "@/lib/utils";
+import { UserAvatar } from "@/components/user-avatar";
+
+const EDITOR_LANGUAGE_BY_EXT = {
+  ts: "typescript",
+  tsx: "typescript",
+  js: "javascript",
+  jsx: "javascript",
+  json: "json",
+  css: "css",
+  md: "markdown",
+} as const;
+
+const CONNECTION_DOT_CLASS = {
+  saved: "ok",
+  connected: "ok",
+  offline: "bad",
+  unauthorized: "bad",
+  connecting: "warn",
+  syncing: "warn",
+} as const satisfies Record<ConnectionStatus, "ok" | "bad" | "warn">;
 
 function applyMonacoTheme(monaco: typeof Monaco, mode: "light" | "dark") {
   if (mode === "light") {
@@ -33,6 +54,16 @@ function applyMonacoTheme(monaco: typeof Monaco, mode: "light" | "dark") {
   monaco.editor.setTheme("collabdesk");
 }
 
+function languageForFileName(fileName: string) {
+  const ext = fileName.includes(".")
+    ? fileName.slice(fileName.lastIndexOf(".") + 1).toLowerCase()
+    : "";
+  if (ext in EDITOR_LANGUAGE_BY_EXT) {
+    return EDITOR_LANGUAGE_BY_EXT[ext as keyof typeof EDITOR_LANGUAGE_BY_EXT];
+  }
+  return "plaintext";
+}
+
 type PresenceUser = {
   clientId: number;
   id: string;
@@ -40,17 +71,15 @@ type PresenceUser = {
   color: string;
 };
 
-export function CollaborativeEditor({
-  fileId,
-  fileName,
-  readOnly,
-  onReadOnlyChange,
-}: {
+export type CollaborativeEditorProps = {
   fileId: string;
   fileName: string;
   readOnly?: boolean;
   onReadOnlyChange?: (readOnly: boolean) => void;
-}) {
+};
+
+export function CollaborativeEditor(props: CollaborativeEditorProps) {
+  const { fileId, fileName, readOnly, onReadOnlyChange } = props;
   const { resolvedTheme } = useTheme();
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [presence, setPresence] = useState<PresenceUser[]>([]);
@@ -63,12 +92,12 @@ export function CollaborativeEditor({
   const editorTheme = resolvedTheme === "light" ? "light" : "dark";
 
   const { doc, yText, provider } = useMemo(() => {
-    const doc = new Y.Doc();
-    const yText = doc.getText("monaco");
+    const nextDoc = new Y.Doc();
+    const nextYText = nextDoc.getText("monaco");
     const token = getToken();
     const url = `${getWsUrl()}?fileId=${encodeURIComponent(fileId)}&token=${encodeURIComponent(token ?? "")}`;
-    const provider = new CollabWebsocketProvider(url, doc);
-    return { doc, yText, provider };
+    const nextProvider = new CollabWebsocketProvider(url, nextDoc);
+    return { doc: nextDoc, yText: nextYText, provider: nextProvider };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileId]);
 
@@ -92,17 +121,6 @@ export function CollaborativeEditor({
     provider.on("hello", onHello);
     provider.on("role", onRole);
     provider.on("control-error", onErr);
-
-    const refreshPresence = () => {
-      const users: PresenceUser[] = [];
-      provider.awareness.getStates().forEach((state, clientId) => {
-        const user = (state as { user?: { id: string; name: string; color: string } }).user;
-        if (!user) return;
-        users.push({ clientId, ...user });
-      });
-      setPresence(users);
-      paintRemoteSelections();
-    };
 
     const paintRemoteSelections = () => {
       const editor = editorRef.current;
@@ -155,9 +173,19 @@ export function CollaborativeEditor({
         });
       });
 
-      // Inject dynamic color styles for selection backgrounds via CSS variables on decorations is limited;
-      // use a shared translucent style and ruler color for identity.
       decorationsRef.current = editor.deltaDecorations(decorationsRef.current, decs);
+    };
+
+    const refreshPresence = () => {
+      const users: PresenceUser[] = [];
+      provider.awareness.getStates().forEach((state, clientId) => {
+        const user = (state as { user?: { id: string; name: string; color: string } })
+          .user;
+        if (!user) return;
+        users.push({ clientId, ...user });
+      });
+      setPresence(users);
+      paintRemoteSelections();
     };
 
     provider.awareness.on("change", refreshPresence);
@@ -220,24 +248,8 @@ export function CollaborativeEditor({
   };
 
   const locked = readOnly || !canWrite;
-  const language = fileName.endsWith(".ts") || fileName.endsWith(".tsx")
-    ? "typescript"
-    : fileName.endsWith(".js") || fileName.endsWith(".jsx")
-      ? "javascript"
-      : fileName.endsWith(".json")
-        ? "json"
-        : fileName.endsWith(".css")
-          ? "css"
-          : fileName.endsWith(".md")
-            ? "markdown"
-            : "plaintext";
-
-  const dotClass =
-    status === "saved" || status === "connected"
-      ? "ok"
-      : status === "offline" || status === "unauthorized"
-        ? "bad"
-        : "warn";
+  const language = languageForFileName(fileName);
+  const dotClass = CONNECTION_DOT_CLASS[status];
 
   return (
     <div className="editor-pane">
@@ -251,7 +263,7 @@ export function CollaborativeEditor({
           ) : null}
         </div>
         <div className="status-pill" aria-live="polite">
-          <span className={`status-dot ${dotClass}`} />
+          <span className={cn("status-dot", dotClass)} />
           <span className="capitalize">{status}</span>
         </div>
       </div>
@@ -280,29 +292,47 @@ export function CollaborativeEditor({
           }}
         />
       </div>
-      <div className="border-t border-border/80 bg-background/50 px-3 py-2.5">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-xs font-medium text-muted-foreground">Presence</p>
-          <p className="text-xs text-muted-foreground">
-            {presence.length} online
-          </p>
-        </div>
-        {presence.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Waiting for collaborators…</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {presence.map((u) => (
-              <div
-                className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card px-2 py-1 text-xs"
-                key={`${u.clientId}-${u.id}`}
-              >
-                <span className="swatch" style={{ background: u.color }} />
-                <span className="max-w-[8rem] truncate">{u.name}</span>
-              </div>
-            ))}
-          </div>
-        )}
+      <CollaborativeEditorPresence presence={presence} />
+    </div>
+  );
+}
+
+type CollaborativeEditorPresenceProps = {
+  presence: PresenceUser[];
+};
+
+function CollaborativeEditorPresence(props: CollaborativeEditorPresenceProps) {
+  const { presence } = props;
+
+  return (
+    <div className="border-t border-border/80 bg-background/50 px-3 py-2.5">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-medium text-muted-foreground">Presence</p>
+        <p className="text-xs text-muted-foreground tabular-nums">
+          {presence.length} online
+        </p>
       </div>
+      {presence.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Waiting for collaborators…</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {presence.map((u) => (
+            <div
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card py-1 pr-2.5 pl-1 text-xs"
+              key={`${u.clientId}-${u.id}`}
+            >
+              <UserAvatar
+                size="sm"
+                className="size-5"
+                seed={u.id || u.name}
+                name={u.name}
+                backgroundColor={u.color}
+              />
+              <span className="max-w-[8rem] truncate">{u.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -6,14 +6,14 @@ import * as decoding from "lib0/decoding";
 import type { WebSocket } from "ws";
 import { canWrite, colorForUserId, WS_CONTROL } from "@collabdesk/shared";
 import type { Role } from "@prisma/client";
-import { env } from "../env.js";
-import { prisma } from "../db.js";
-import { logActivity, logError } from "../logging.js";
+import { env } from "@/env";
+import { prisma } from "@/db";
+import { logActivity, logError } from "@/logging";
 import {
   loadDocument,
   maybeSnapshot,
   persistUpdate,
-} from "./persistence.js";
+} from "@/yjs/persistence";
 
 const messageSync = 0;
 const messageAwareness = 1;

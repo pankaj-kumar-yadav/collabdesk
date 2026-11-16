@@ -5,9 +5,9 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import WebSocket from "ws";
 import type { FastifyInstance } from "fastify";
-import { buildApp } from "../app.js";
-import { prisma } from "../db.js";
-import { closeAllRooms } from "../yjs/rooms.js";
+import { buildApp } from "@/app";
+import { prisma } from "@/db";
+import { closeAllRooms } from "@/yjs/rooms";
 
 const messageSync = 0;
 const messageAwareness = 1;
@@ -117,19 +117,29 @@ export class TestYClient {
       this.ws.send(encoding.toUint8Array(encoder));
     });
 
-    this.awareness.on("update", ({ added, updated, removed }, origin) => {
-      if (origin === "remote" || this.ws.readyState !== WebSocket.OPEN) return;
-      const encoder = encoding.createEncoder();
-      encoding.writeVarUint(encoder, messageAwareness);
-      encoding.writeVarUint8Array(
-        encoder,
-        awarenessProtocol.encodeAwarenessUpdate(
-          this.awareness,
-          added.concat(updated, removed),
-        ),
-      );
-      this.ws.send(encoding.toUint8Array(encoder));
-    });
+    this.awareness.on(
+      "update",
+      (
+        {
+          added,
+          updated,
+          removed,
+        }: { added: number[]; updated: number[]; removed: number[] },
+        origin: unknown,
+      ) => {
+        if (origin === "remote" || this.ws.readyState !== WebSocket.OPEN) return;
+        const encoder = encoding.createEncoder();
+        encoding.writeVarUint(encoder, messageAwareness);
+        encoding.writeVarUint8Array(
+          encoder,
+          awarenessProtocol.encodeAwarenessUpdate(
+            this.awareness,
+            added.concat(updated, removed),
+          ),
+        );
+        this.ws.send(encoding.toUint8Array(encoder));
+      },
+    );
 
     this.ws.on("message", (raw) => {
       const data = new Uint8Array(raw as Buffer);
@@ -173,7 +183,7 @@ export class TestYClient {
   waitClose(timeoutMs = 5000) {
     return new Promise<number>((resolve, reject) => {
       if (this.ws.readyState === WebSocket.CLOSED) {
-        resolve(this.ws.closeCode ?? 1006);
+        resolve(1006);
         return;
       }
       const timer = setTimeout(() => reject(new Error("close timeout")), timeoutMs);

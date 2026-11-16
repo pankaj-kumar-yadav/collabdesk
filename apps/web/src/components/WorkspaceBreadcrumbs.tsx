@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useBreadcrumbTrail } from "@/components/breadcrumb-context";
+import { APP_ROUTES } from "@/constants/app-routes.constant";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,19 +14,42 @@ import {
 } from "@/components/ui/breadcrumb";
 
 export function WorkspaceBreadcrumbs() {
+  const pathname = usePathname();
   const params = useParams<{ workspaceId?: string }>();
-  const workspaceId = params.workspaceId;
+  const workspaceId =
+    params.workspaceId && params.workspaceId !== "settings"
+      ? params.workspaceId
+      : undefined;
   const { trail } = useBreadcrumbTrail();
 
   const workspaceLabel = trail.workspaceName?.trim() || "Workspace";
   const fileLabel = trail.fileName?.trim();
+  const isSettings = pathname === APP_ROUTES.SETTINGS;
+
+  if (isSettings) {
+    return (
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link href={APP_ROUTES.WORKSPACES}>All workspaces</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Settings</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+    );
+  }
 
   if (!workspaceId) {
     return (
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
-            <BreadcrumbPage>Home</BreadcrumbPage>
+            <BreadcrumbPage>All workspaces</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -37,7 +61,7 @@ export function WorkspaceBreadcrumbs() {
       <BreadcrumbList className="min-w-0">
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link href="/workspaces">Home</Link>
+            <Link href={APP_ROUTES.WORKSPACES}>All workspaces</Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
         <BreadcrumbSeparator />
@@ -45,7 +69,7 @@ export function WorkspaceBreadcrumbs() {
           {fileLabel ? (
             <BreadcrumbLink asChild>
               <Link
-                href={`/workspaces/${workspaceId}`}
+                href={APP_ROUTES.workspace(workspaceId)}
                 className="max-w-[10rem] truncate sm:max-w-[16rem]"
               >
                 {workspaceLabel}

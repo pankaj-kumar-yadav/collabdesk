@@ -20,11 +20,12 @@ type BreadcrumbContextValue = {
 
 const BreadcrumbContext = createContext<BreadcrumbContextValue | null>(null);
 
-export function BreadcrumbProvider({
-  children,
-}: {
+export type BreadcrumbProviderProps = {
   children: React.ReactNode;
-}) {
+};
+
+export function BreadcrumbProvider(props: BreadcrumbProviderProps) {
+  const { children } = props;
   const [trail, setTrailState] = useState<BreadcrumbTrail>({});
   const setTrail = useCallback((next: BreadcrumbTrail) => {
     setTrailState(next);

@@ -4,6 +4,9 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModeToggle } from "@/components/ModeToggle";
+import { FormFieldLabel } from "@/components/form-field-label";
+import { AUTH_FORM_FIELD_INFO } from "@/constants/form-field-info/auth";
+import { APP_ROUTES } from "@/constants/app-routes.constant";
 import { authClient } from "@/lib/auth-client";
 import { setToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -16,7 +19,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -40,7 +42,7 @@ export default function RegisterPage() {
     const token = session.data?.session?.token;
     if (token) setToken(token);
     setLoading(false);
-    router.replace("/workspaces");
+    router.replace(APP_ROUTES.WORKSPACES);
   }
 
   return (
@@ -68,7 +70,13 @@ export default function RegisterPage() {
               </p>
             ) : null}
             <div className="space-y-2">
-              <Label htmlFor="register-name">Name</Label>
+              <FormFieldLabel
+                htmlFor="register-name"
+                required
+                info={AUTH_FORM_FIELD_INFO.registerName}
+              >
+                Name
+              </FormFieldLabel>
               <Input
                 id="register-name"
                 value={name}
@@ -79,7 +87,13 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="register-email">Email</Label>
+              <FormFieldLabel
+                htmlFor="register-email"
+                required
+                info={AUTH_FORM_FIELD_INFO.registerEmail}
+              >
+                Email
+              </FormFieldLabel>
               <Input
                 id="register-email"
                 type="email"
@@ -91,7 +105,13 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="register-password">Password</Label>
+              <FormFieldLabel
+                htmlFor="register-password"
+                required
+                info={AUTH_FORM_FIELD_INFO.registerPassword}
+              >
+                Password
+              </FormFieldLabel>
               <Input
                 id="register-password"
                 type="password"
@@ -112,7 +132,7 @@ export default function RegisterPage() {
           <p className="text-sm text-muted-foreground">
             Already registered?{" "}
             <Link
-              href="/login"
+              href={APP_ROUTES.LOGIN}
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               Sign in

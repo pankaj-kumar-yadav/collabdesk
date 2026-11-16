@@ -5,9 +5,9 @@ import {
   registerAndLogin,
   startTestServer,
   stopTestServer,
-} from "../src/test/helpers.js";
-import { prisma } from "../src/db.js";
-import { closeAllRooms } from "../src/yjs/rooms.js";
+} from "@/test/helpers";
+import { prisma } from "@/db";
+import { closeAllRooms } from "@/yjs/rooms";
 
 const { app, baseUrl } = await startTestServer();
 await cleanupTestData();

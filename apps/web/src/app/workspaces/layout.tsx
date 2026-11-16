@@ -12,13 +12,17 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 
-export default function WorkspacesLayout({
-  children,
-}: {
+type WorkspacesLayoutProps = {
   children: React.ReactNode;
-}) {
+};
+
+export default function WorkspacesLayout(props: WorkspacesLayoutProps) {
+  const { children } = props;
   const params = useParams<{ workspaceId?: string }>();
-  const activeWorkspaceId = params.workspaceId;
+  const activeWorkspaceId =
+    params.workspaceId && params.workspaceId !== "settings"
+      ? params.workspaceId
+      : undefined;
 
   return (
     <SidebarProvider>

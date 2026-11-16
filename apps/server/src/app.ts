@@ -2,13 +2,13 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import { fromNodeHeaders } from "better-auth/node";
-import { auth, getSessionFromHeaders } from "./auth.js";
-import { env } from "./env.js";
-import { workspaceRoutes } from "./routes/workspaces.js";
-import { attachClient, getRoomStats } from "./yjs/rooms.js";
-import { prisma } from "./db.js";
-import { HttpError } from "./permissions.js";
-import { logError } from "./logging.js";
+import { auth, getSessionFromHeaders } from "@/auth";
+import { env } from "@/env";
+import { workspaceRoutes } from "@/routes/workspaces";
+import { attachClient, getRoomStats } from "@/yjs/rooms";
+import { prisma } from "@/db";
+import { HttpError } from "@/permissions";
+import { logError } from "@/logging";
 
 function headersToWebHeaders(headers: Record<string, unknown>): Headers {
   const h = new Headers();
