@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: collabdesk-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: collabdesk
+      POSTGRES_PASSWORD: collabdesk
+      POSTGRES_DB: collabdesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - collabdesk_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U collabdesk -d collabdesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  collabdesk_pg:

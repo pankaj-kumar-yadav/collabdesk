@@ -1,0 +1,32 @@
+{
+  "name": "collabdesk",
+  "private": true,
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.27.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @collabdesk/server --filter @collabdesk/web dev",
+    "dev:server": "pnpm --filter @collabdesk/server dev",
+    "dev:web": "pnpm --filter @collabdesk/web dev",
+    "dev:desktop": "pnpm --filter @collabdesk/desktop dev",
+    "build": "pnpm --filter @collabdesk/shared build && pnpm --filter @collabdesk/server build && pnpm --filter @collabdesk/web build && pnpm --filter @collabdesk/desktop build",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @collabdesk/server prisma:migrate",
+    "db:generate": "pnpm --filter @collabdesk/server prisma:generate",
+    "test": "pnpm --filter @collabdesk/server test",
+    "test:load": "pnpm --filter @collabdesk/server test:load",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "electron"
+    ]
+  }
+}
