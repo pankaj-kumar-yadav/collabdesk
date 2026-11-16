@@ -8,6 +8,7 @@ import * as Y from "yjs";
 import { MonacoBinding } from "y-monaco";
 import type { ConnectionStatus } from "@collabdesk/shared";
 import { getToken, getWsUrl } from "@/lib/api";
+import { fileExtensionIcon } from "@/lib/file-extension-icon";
 import { CollabWebsocketProvider } from "@/lib/y-websocket";
 import { cn } from "@/lib/utils";
 import { UserAvatar } from "@/components/user-avatar";
@@ -163,9 +164,9 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
             },
             after: isCursor
               ? {
-                  content: "▋",
-                  inlineClassName: "remote-cursor",
-                }
+                content: "▋",
+                inlineClassName: "remote-cursor",
+              }
               : undefined,
             stickiness:
               monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -249,14 +250,17 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
 
   const locked = readOnly || !canWrite;
   const language = languageForFileName(fileName);
+  const { Icon: FileIcon, className: iconClassName } =
+    fileExtensionIcon(fileName);
   const dotClass = CONNECTION_DOT_CLASS[status];
 
   return (
     <div className="editor-pane">
       <div className="editor-toolbar">
         <div className="min-w-0">
-          <p className="truncate font-mono text-sm font-medium tracking-tight">
-            {fileName}
+          <p className="flex min-w-0 items-center gap-1.5 truncate font-mono text-sm font-medium tracking-tight">
+            <FileIcon className={cn("size-3.5 shrink-0", iconClassName)} />
+            <span className="truncate">{fileName}</span>
           </p>
           {locked ? (
             <p className="text-xs text-muted-foreground">Read-only for your role</p>

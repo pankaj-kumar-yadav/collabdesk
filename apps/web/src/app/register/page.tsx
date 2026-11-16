@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ModeToggle } from "@/components/ModeToggle";
 import { FormFieldLabel } from "@/components/form-field-label";
+import { FadeIn, PresenceMessage } from "@/components/motion";
 import { AUTH_FORM_FIELD_INFO } from "@/constants/form-field-info/auth";
 import { APP_ROUTES } from "@/constants/app-routes.constant";
 import { authClient } from "@/lib/auth-client";
@@ -50,7 +51,8 @@ export default function RegisterPage() {
       <div className="absolute top-4 right-4">
         <ModeToggle />
       </div>
-      <Card className="auth-card enter-lead border-border/80 shadow-sm">
+      <FadeIn className="auth-card">
+      <Card className="border-border/80 shadow-sm">
         <CardHeader className="space-y-3">
           <div className="brand">
             Collab<span>Desk</span>
@@ -64,11 +66,11 @@ export default function RegisterPage() {
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
-            {error ? (
+            <PresenceMessage show={Boolean(error)}>
               <p className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
               </p>
-            ) : null}
+            </PresenceMessage>
             <div className="space-y-2">
               <FormFieldLabel
                 htmlFor="register-name"
@@ -140,6 +142,7 @@ export default function RegisterPage() {
           </p>
         </CardFooter>
       </Card>
+      </FadeIn>
     </div>
   );
 }

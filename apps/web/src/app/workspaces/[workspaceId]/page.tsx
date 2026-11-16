@@ -1,9 +1,11 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBreadcrumbTrail } from "@/components/breadcrumb-context";
 import { CollaborativeEditor } from "@/components/CollaborativeEditor";
+import { FadeIn, PresenceMessage } from "@/components/motion";
+import { DetailPageSkeleton } from "@/components/page-skeleton";
 import { WorkspaceFilesSidebar } from "@/components/WorkspaceFilesSidebar";
 import { APP_ROUTES } from "@/constants/app-routes.constant";
 import { api } from "@/lib/api";
@@ -22,12 +24,10 @@ export default function WorkspacePage() {
   const { setTrail } = useBreadcrumbTrail();
   const [data, setData] = useState<WorkspaceDetail | null>(null);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<InviteRole>("editor");
-  const [inviteResult, setInviteResult] = useState<string | null>(null);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     const ws = await api<WorkspaceDetail>(`/workspaces/${workspaceId}`);
@@ -40,13 +40,25 @@ export default function WorkspacePage() {
   }, [workspaceId]);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
     authClient.getSession().then(({ data: session }) => {
+      if (cancelled) return;
       if (!session?.user) {
         router.replace(APP_ROUTES.LOGIN);
         return;
       }
-      refresh().catch((e) => setError(e.message));
+      refresh()
+        .catch((e) => {
+          if (!cancelled) setError(e.message);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [refresh, router]);
 
   const activeFile = data?.files.find((f) => f.id === activeFileId) ?? null;
@@ -109,20 +121,19 @@ export default function WorkspacePage() {
     }
   }
 
-  async function invite(e: FormEvent) {
-    e.preventDefault();
+  async function invite(email: string, role: InviteRole) {
     try {
       const inv = await api<{ token: string }>(
         `/workspaces/${workspaceId}/invitations`,
         {
           method: "POST",
-          body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+          body: JSON.stringify({ email, role }),
         },
       );
-      setInviteResult(inv.token);
-      setInviteEmail("");
+      return inv.token;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invite failed");
+      throw err;
     }
   }
 
@@ -152,21 +163,21 @@ export default function WorkspacePage() {
     }
   }
 
-  if (!data) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <div className="enter-lead text-center">
-          <p className="text-sm font-medium tracking-tight">Loading workspace</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Syncing files, members, and permissions…
+  if (loading || !data) {
+    if (error && !data) {
+      return (
+        <div className="flex flex-1 items-center justify-center p-6">
+          <p className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
           </p>
         </div>
-      </div>
-    );
+      );
+    }
+    return <DetailPageSkeleton />;
   }
 
   return (
-    <div className="flex min-h-0 w-full flex-1">
+    <FadeIn tone="support" className="flex min-h-0 w-full flex-1">
       <WorkspaceFilesSidebar
         workspaceName={data.name}
         myRole={data.myRole}
@@ -174,11 +185,6 @@ export default function WorkspacePage() {
         activeFileId={activeFileId}
         members={data.members}
         snapshots={snapshots}
-        inviteEmail={inviteEmail}
-        inviteRole={inviteRole}
-        inviteResult={inviteResult}
-        onInviteEmailChange={setInviteEmail}
-        onInviteRoleChange={setInviteRole}
         onSelectFile={setActiveFileId}
         onCreateFile={createFile}
         onRenameFile={renameFile}
@@ -189,11 +195,11 @@ export default function WorkspacePage() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col bg-background/30">
-        {error ? (
+        <PresenceMessage show={Boolean(error)}>
           <p className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">
             {error}
           </p>
-        ) : null}
+        </PresenceMessage>
         {activeFile ? (
           <CollaborativeEditor
             key={activeFile.id}
@@ -204,7 +210,7 @@ export default function WorkspacePage() {
           />
         ) : (
           <div className="flex flex-1 items-center justify-center p-6">
-            <div className="enter-lead max-w-sm text-center">
+            <div className="max-w-sm text-center">
               <p className="text-sm font-medium tracking-tight">No file selected</p>
               <p className="mt-1.5 text-sm text-muted-foreground">
                 Create or select a file in the workspace sidebar to start collaborating.
@@ -213,6 +219,6 @@ export default function WorkspacePage() {
           </div>
         )}
       </div>
-    </div>
+    </FadeIn>
   );
 }

@@ -223,6 +223,45 @@
   }
 }
 
+/* Fast skeleton shimmer — compositor-friendly, short cycle */
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: color-mix(in oklab, var(--muted) 88%, var(--foreground) 4%);
+}
+
+.skeleton-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklab, var(--background) 55%, transparent) 45%,
+    color-mix(in oklab, var(--background) 70%, transparent) 55%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 0.9s var(--ease-out) infinite;
+}
+
+/* Global loader spin — fast perceived wait */
+@keyframes global-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.global-loader-spin {
+  animation: global-loader-spin 0.65s linear infinite;
+}
+
 /* Occasional page enter — lead only, no child stagger */
 .enter-lead {
   opacity: 1;
@@ -310,7 +349,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.55rem 0.85rem;
+  height: 3rem;
+  flex-shrink: 0;
+  padding: 0 0.85rem;
   border-bottom: 1px solid var(--line);
   background: color-mix(in oklab, var(--bg1) 88%, transparent);
 }
@@ -325,7 +366,9 @@
   font-size: 0.8rem;
   color: var(--muted-text);
   background: color-mix(in oklab, var(--bg0) 80%, transparent);
-  transition: border-color 160ms ease, color 160ms ease;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease;
 }
 
 .status-dot {
@@ -371,7 +414,10 @@
   .enter-support,
   .pressable,
   .pressable-lift {
-    transition: opacity 160ms ease, background-color 160ms ease, border-color 160ms ease !important;
+    transition:
+      opacity 160ms ease,
+      background-color 160ms ease,
+      border-color 160ms ease !important;
     transform: none !important;
   }
 
@@ -386,5 +432,14 @@
   .pressable:active,
   .pressable-lift:active {
     transform: none !important;
+  }
+
+  .skeleton-shimmer::after,
+  .global-loader-spin {
+    animation: none !important;
+  }
+
+  .skeleton-shimmer::after {
+    display: none;
   }
 }

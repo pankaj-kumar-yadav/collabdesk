@@ -10,6 +10,8 @@ import type { WorkspaceRow } from "@/lib/workspace-types";
 import { APP_ROUTES } from "@/constants/app-routes.constant";
 import { WORKSPACES_FORM_FIELD_INFO } from "@/constants/form-field-info/workspaces";
 import { FormFieldLabel } from "@/components/form-field-label";
+import { FadeIn, PresenceMessage, StaggerItem, StaggerRoot } from "@/components/motion";
+import { WorkspacesPageSkeleton } from "@/components/page-skeleton";
 import { RoleBadge } from "@/components/role-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +36,7 @@ export default function WorkspacesPage() {
   const router = useRouter();
   const [rows, setRows] = useState<WorkspaceRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function refresh() {
     const data = await api<WorkspaceRow[]>("/workspaces");
@@ -41,18 +44,33 @@ export default function WorkspacesPage() {
   }
 
   useEffect(() => {
+    let cancelled = false;
     authClient.getSession().then(({ data }) => {
+      if (cancelled) return;
       if (!data?.user) {
         router.replace(APP_ROUTES.LOGIN);
         return;
       }
-      refresh().catch((e) => setError(e.message));
+      refresh()
+        .catch((e) => {
+          if (!cancelled) setError(e.message);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
+
+  if (loading) {
+    return <WorkspacesPageSkeleton />;
+  }
 
   return (
     <div className="flex-1 overflow-auto p-4 md:p-6">
-      <div className="enter-lead mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <FadeIn className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="max-w-2xl">
           <h1 className="text-2xl font-semibold tracking-tight">Home</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
@@ -77,65 +95,68 @@ export default function WorkspacesPage() {
             onError={setError}
           />
         </div>
-      </div>
+      </FadeIn>
 
-      {error ? (
-        <p className="mb-4 rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+      <PresenceMessage show={Boolean(error)} className="mb-4">
+        <p className="rounded-md border border-destructive/25 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
-      ) : null}
+      </PresenceMessage>
 
-      <div className="mb-4">
+      <FadeIn tone="support" delay={0.04} className="mb-4">
         <h2 className="text-lg font-medium tracking-tight">Your workspaces</h2>
         <p className="text-sm text-muted-foreground">
           Open a workspace to edit files and collaborate.
         </p>
-      </div>
+      </FadeIn>
 
       {rows.length > 0 ? (
-        <div className="enter-support grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {rows.map((row) => (
-            <Link
-              key={row.id}
-              href={APP_ROUTES.workspace(row.id)}
-              className="pressable pressable-lift block rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-              <Card className="h-full border-border/80 shadow-sm transition-[border-color] duration-150">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base tracking-tight">
-                      {row.name}
-                    </CardTitle>
-                    <RoleBadge role={row.role} />
-                  </div>
-                  <CardDescription className="flex items-center gap-1">
-                    Open workspace
-                    <ArrowRight className="size-3.5" />
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex gap-4 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1 tabular-nums">
-                    <Users className="size-3.5" />
-                    {row.memberCount} members
-                  </span>
-                  <span className="inline-flex items-center gap-1 tabular-nums">
-                    <Files className="size-3.5" />
-                    {row.fileCount} files
-                  </span>
-                </CardContent>
-              </Card>
-            </Link>
+        <StaggerRoot className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {rows.map((row, index) => (
+            <StaggerItem key={row.id} index={index}>
+              <Link
+                href={APP_ROUTES.workspace(row.id)}
+                className="pressable pressable-lift block rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <Card className="h-full border-border/80 shadow-sm transition-[border-color] duration-150">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="text-base tracking-tight">
+                        {row.name}
+                      </CardTitle>
+                      <RoleBadge role={row.role} />
+                    </div>
+                    <CardDescription className="flex items-center gap-1">
+                      Open workspace
+                      <ArrowRight className="size-3.5" />
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex gap-4 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 tabular-nums">
+                      <Users className="size-3.5" />
+                      {row.memberCount} members
+                    </span>
+                    <span className="inline-flex items-center gap-1 tabular-nums">
+                      <Files className="size-3.5" />
+                      {row.fileCount} files
+                    </span>
+                  </CardContent>
+                </Card>
+              </Link>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerRoot>
       ) : !error ? (
-        <Card className="border-dashed border-border/80 shadow-none">
-          <CardHeader>
-            <CardTitle className="text-base">No workspaces yet</CardTitle>
-            <CardDescription>
-              Use New workspace or Join invite above to get started.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <FadeIn tone="support" delay={0.06}>
+          <Card className="border-dashed border-border/80 shadow-none">
+            <CardHeader>
+              <CardTitle className="text-base">No workspaces yet</CardTitle>
+              <CardDescription>
+                Use New workspace or Join invite above to get started.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </FadeIn>
       ) : null}
     </div>
   );

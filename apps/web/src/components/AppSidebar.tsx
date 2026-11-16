@@ -14,6 +14,7 @@ import { authClient } from "@/lib/auth-client";
 import { api, setToken } from "@/lib/api";
 import type { WorkspaceRow } from "@/lib/workspace-types";
 import { APP_ROUTES } from "@/constants/app-routes.constant";
+import { SidebarWorkspaceListSkeleton } from "@/components/page-skeleton";
 import { RoleBadge } from "@/components/role-badge";
 import { UserAvatar } from "@/components/user-avatar";
 import {
@@ -25,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sidebar,
   SidebarContent,
@@ -37,7 +39,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
-  SidebarSeparator,
 } from "@/components/ui/sidebar";
 
 export type AppSidebarProps = {
@@ -52,6 +53,7 @@ export function AppSidebar(props: AppSidebarProps) {
   const [userEmail, setUserEmail] = useState("");
   const [rows, setRows] = useState<WorkspaceRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const isAllWorkspaces = pathname === APP_ROUTES.WORKSPACES;
   const isSettings = pathname === APP_ROUTES.SETTINGS;
@@ -62,15 +64,27 @@ export function AppSidebar(props: AppSidebarProps) {
   }
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
     authClient.getSession().then(({ data }) => {
+      if (cancelled) return;
       if (!data?.user) {
         router.replace(APP_ROUTES.LOGIN);
         return;
       }
       setUserName(data.user.name);
       setUserEmail(data.user.email);
-      refresh().catch((e) => setError(e.message));
+      refresh()
+        .catch((e) => {
+          if (!cancelled) setError(e.message);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [router, pathname]);
 
   async function logout() {
@@ -81,10 +95,10 @@ export function AppSidebar(props: AppSidebarProps) {
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
-      <SidebarHeader>
+      <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-2 py-0">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild tooltip="CollabDesk">
+            <SidebarMenuButton size="lg" className="h-11" asChild tooltip="CollabDesk">
               <Link href={APP_ROUTES.WORKSPACES}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <LayoutGrid className="size-4" />
@@ -136,24 +150,33 @@ export function AppSidebar(props: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
-
         <AppSidebarWorkspaceList
           rows={rows}
           activeWorkspaceId={activeWorkspaceId}
           error={error}
+          loading={loading}
         />
       </SidebarContent>
 
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
-            <AppSidebarAccountMenu
-              userName={userName}
-              userEmail={userEmail}
-              onSettings={() => router.push(APP_ROUTES.SETTINGS)}
-              onLogout={logout}
-            />
+            {loading && !userEmail ? (
+              <div className="flex items-center gap-2 px-2 py-1.5">
+                <Skeleton className="size-8 rounded-lg" />
+                <div className="grid flex-1 gap-1.5 group-data-[collapsible=icon]:hidden">
+                  <Skeleton className="h-3.5 w-24" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+              </div>
+            ) : (
+              <AppSidebarAccountMenu
+                userName={userName}
+                userEmail={userEmail}
+                onSettings={() => router.push(APP_ROUTES.SETTINGS)}
+                onLogout={logout}
+              />
+            )}
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
@@ -166,41 +189,46 @@ type AppSidebarWorkspaceListProps = {
   rows: WorkspaceRow[];
   activeWorkspaceId?: string;
   error: string | null;
+  loading: boolean;
 };
 
 function AppSidebarWorkspaceList(props: AppSidebarWorkspaceListProps) {
-  const { rows, activeWorkspaceId, error } = props;
+  const { rows, activeWorkspaceId, error, loading } = props;
 
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
       <SidebarGroupContent>
-        <ScrollArea className="max-h-[50vh]">
-          <SidebarMenu>
-            {rows.map((row) => (
-              <SidebarMenuItem key={row.id}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={activeWorkspaceId === row.id}
-                  tooltip={row.name}
-                >
-                  <Link href={APP_ROUTES.workspace(row.id)}>
-                    <LayoutGrid />
-                    <span>{row.name}</span>
-                    <RoleBadge
-                      role={row.role}
-                      className="ml-auto group-data-[collapsible=icon]:hidden"
-                    />
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-            {rows.length === 0 ? (
-              <p className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-                No workspaces yet
-              </p>
-            ) : null}
-          </SidebarMenu>
+        <ScrollArea className="max-h-[50vh] overflow-x-hidden">
+          {loading ? (
+            <SidebarWorkspaceListSkeleton />
+          ) : (
+            <SidebarMenu>
+              {rows.map((row) => (
+                <SidebarMenuItem key={row.id}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={activeWorkspaceId === row.id}
+                    tooltip={row.name}
+                  >
+                    <Link href={APP_ROUTES.workspace(row.id)}>
+                      <LayoutGrid />
+                      <span>{row.name}</span>
+                      <RoleBadge
+                        role={row.role}
+                        className="ml-auto group-data-[collapsible=icon]:hidden"
+                      />
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+              {rows.length === 0 ? (
+                <p className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+                  No workspaces yet
+                </p>
+              ) : null}
+            </SidebarMenu>
+          )}
         </ScrollArea>
         {error ? (
           <p className="px-2 pt-2 text-xs text-destructive group-data-[collapsible=icon]:hidden">

@@ -56,15 +56,24 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarSeparator,
 } from "@/components/ui/sidebar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fileExtensionIcon } from "@/lib/file-extension-icon";
 import { cn } from "@/lib/utils";
+
+const WORKSPACE_SIDEBAR_TABS = {
+  files: "files",
+  members: "members",
+  history: "history",
+} as const;
+
+type WorkspaceSidebarTab =
+  (typeof WORKSPACE_SIDEBAR_TABS)[keyof typeof WORKSPACE_SIDEBAR_TABS];
 
 export type WorkspaceFilesSidebarProps = {
   workspaceName: string;
@@ -73,16 +82,11 @@ export type WorkspaceFilesSidebarProps = {
   activeFileId: string | null;
   members: Member[];
   snapshots: Snapshot[];
-  inviteEmail: string;
-  inviteRole: InviteRole;
-  inviteResult: string | null;
-  onInviteEmailChange: (value: string) => void;
-  onInviteRoleChange: (value: InviteRole) => void;
   onSelectFile: (id: string) => void;
   onCreateFile: (name: string) => Promise<void> | void;
   onRenameFile: (fileId: string, nextName: string) => void;
   onDeleteFile: (fileId: string) => void;
-  onInvite: (e: FormEvent) => void;
+  onInvite: (email: string, role: InviteRole) => Promise<string>;
   onChangeRole: (memberId: string, role: InviteRole) => void;
   onRestoreSnapshot: (snapshotId: string) => void;
 };
@@ -95,11 +99,6 @@ export function WorkspaceFilesSidebar(props: WorkspaceFilesSidebarProps) {
     activeFileId,
     members,
     snapshots,
-    inviteEmail,
-    inviteRole,
-    inviteResult,
-    onInviteEmailChange,
-    onInviteRoleChange,
     onSelectFile,
     onCreateFile,
     onRenameFile,
@@ -111,6 +110,9 @@ export function WorkspaceFilesSidebar(props: WorkspaceFilesSidebarProps) {
 
   const canEdit = myRole !== "viewer";
   const isOwner = myRole === "owner";
+  const [tab, setTab] = useState<WorkspaceSidebarTab>(
+    WORKSPACE_SIDEBAR_TABS.files,
+  );
 
   return (
     <Sidebar
@@ -118,64 +120,92 @@ export function WorkspaceFilesSidebar(props: WorkspaceFilesSidebarProps) {
       className="hidden w-[18rem] border-r border-sidebar-border bg-sidebar/80 md:flex"
     >
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="px-2 py-2">
-          <p className="truncate text-sm font-semibold tracking-tight">
-            {workspaceName}
-          </p>
-          <div className="mt-1.5 flex items-center gap-2">
-            <RoleBadge role={myRole} />
-            <span className="text-xs text-muted-foreground tabular-nums">
-              {files.length} files · {members.length} members
-            </span>
+        <div className="flex items-start gap-2 px-2 py-2">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold tracking-tight">
+              {workspaceName}
+            </p>
+            <div className="mt-1.5 flex items-center gap-2">
+              <RoleBadge role={myRole} />
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {files.length} files · {members.length} members
+              </span>
+            </div>
           </div>
+          {isOwner ? <InviteMemberDialog onInvite={onInvite} /> : null}
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        <ScrollArea className="h-full">
-          <WorkspaceFilesSection
-            files={files}
-            activeFileId={activeFileId}
-            canEdit={canEdit}
-            onSelectFile={onSelectFile}
-            onCreateFile={onCreateFile}
-            onRenameFile={onRenameFile}
-            onDeleteFile={onDeleteFile}
-          />
+        <Tabs
+          value={tab}
+          onValueChange={(value) => setTab(value as WorkspaceSidebarTab)}
+          className="flex h-full flex-col gap-0"
+        >
+          <TabsList className="mx-2 mt-2 grid h-9 w-[calc(100%-1rem)] grid-cols-3">
+            <TabsTrigger
+              value={WORKSPACE_SIDEBAR_TABS.files}
+              className="gap-1 px-1.5 text-xs"
+            >
+              <FileCode2 className="size-3.5" />
+              Files
+            </TabsTrigger>
+            <TabsTrigger
+              value={WORKSPACE_SIDEBAR_TABS.members}
+              className="gap-1 px-1.5 text-xs"
+            >
+              <Users className="size-3.5" />
+              Members
+            </TabsTrigger>
+            <TabsTrigger
+              value={WORKSPACE_SIDEBAR_TABS.history}
+              className="gap-1 px-1.5 text-xs"
+            >
+              <History className="size-3.5" />
+              History
+            </TabsTrigger>
+          </TabsList>
 
-          <SidebarSeparator />
-
-          <WorkspaceMembersSection
-            members={members}
-            isOwner={isOwner}
-            onChangeRole={onChangeRole}
-          />
-
-          {isOwner ? (
-            <>
-              <SidebarSeparator />
-              <WorkspaceInviteSection
-                inviteEmail={inviteEmail}
-                inviteRole={inviteRole}
-                inviteResult={inviteResult}
-                onInviteEmailChange={onInviteEmailChange}
-                onInviteRoleChange={onInviteRoleChange}
-                onInvite={onInvite}
+          <ScrollArea className="h-full overflow-x-hidden">
+            <TabsContent
+              value={WORKSPACE_SIDEBAR_TABS.files}
+              className="mt-0 outline-none"
+            >
+              <WorkspaceFilesSection
+                files={files}
+                activeFileId={activeFileId}
+                canEdit={canEdit}
+                onSelectFile={onSelectFile}
+                onCreateFile={onCreateFile}
+                onRenameFile={onRenameFile}
+                onDeleteFile={onDeleteFile}
               />
-            </>
-          ) : null}
+            </TabsContent>
 
-          {activeFileId ? (
-            <>
-              <SidebarSeparator />
+            <TabsContent
+              value={WORKSPACE_SIDEBAR_TABS.members}
+              className="mt-0 outline-none"
+            >
+              <WorkspaceMembersSection
+                members={members}
+                isOwner={isOwner}
+                onChangeRole={onChangeRole}
+              />
+            </TabsContent>
+
+            <TabsContent
+              value={WORKSPACE_SIDEBAR_TABS.history}
+              className="mt-0 outline-none"
+            >
               <WorkspaceHistorySection
+                activeFileId={activeFileId}
                 snapshots={snapshots}
                 canEdit={canEdit}
                 onRestoreSnapshot={onRestoreSnapshot}
               />
-            </>
-          ) : null}
-        </ScrollArea>
+            </TabsContent>
+          </ScrollArea>
+        </Tabs>
       </SidebarContent>
     </Sidebar>
   );
@@ -204,43 +234,40 @@ function WorkspaceFilesSection(props: WorkspaceFilesSectionProps) {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel className="flex items-center gap-1.5">
-        <FileCode2 className="size-3.5" />
-        Files
-        <span className="ml-auto tabular-nums text-muted-foreground">
-          {files.length}
-        </span>
-      </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {files.map((file) => (
-            <SidebarMenuItem key={file.id}>
-              <SidebarMenuButton
-                isActive={file.id === activeFileId}
-                onClick={() => onSelectFile(file.id)}
-                className={cn(
-                  "active:scale-[0.98]",
-                  canEdit && "pr-14",
-                )}
-              >
-                <FileCode2 />
-                <span className="font-mono text-xs">{file.name}</span>
-              </SidebarMenuButton>
-              {canEdit ? (
-                <>
-                  <RenameFileDialog
-                    fileId={file.id}
-                    fileName={file.name}
-                    onRename={onRenameFile}
-                  />
-                  <DeleteFileConfirmButton
-                    fileName={file.name}
-                    onConfirm={() => onDeleteFile(file.id)}
-                  />
-                </>
-              ) : null}
-            </SidebarMenuItem>
-          ))}
+          {files.map((file) => {
+            const { Icon: FileIcon, className: iconClassName } =
+              fileExtensionIcon(file.name);
+            return (
+              <SidebarMenuItem key={file.id}>
+                <SidebarMenuButton
+                  isActive={file.id === activeFileId}
+                  onClick={() => onSelectFile(file.id)}
+                  className={cn(
+                    "active:scale-[0.98]",
+                    canEdit && "pr-14",
+                  )}
+                >
+                  <FileIcon className={iconClassName} />
+                  <span className="font-mono text-xs">{file.name}</span>
+                </SidebarMenuButton>
+                {canEdit ? (
+                  <>
+                    <RenameFileDialog
+                      fileId={file.id}
+                      fileName={file.name}
+                      onRename={onRenameFile}
+                    />
+                    <DeleteFileConfirmButton
+                      fileName={file.name}
+                      onConfirm={() => onDeleteFile(file.id)}
+                    />
+                  </>
+                ) : null}
+              </SidebarMenuItem>
+            );
+          })}
           {files.length === 0 ? (
             <p className="px-2 py-1 text-xs text-muted-foreground">No files yet</p>
           ) : null}
@@ -490,13 +517,6 @@ function WorkspaceMembersSection(props: WorkspaceMembersSectionProps) {
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel className="flex items-center gap-1.5">
-        <Users className="size-3.5" />
-        Members
-        <span className="ml-auto tabular-nums text-muted-foreground">
-          {members.length}
-        </span>
-      </SidebarGroupLabel>
       <SidebarGroupContent className="space-y-2 px-2 pb-2">
         {members.map((m) => (
           <div
@@ -549,94 +569,145 @@ function WorkspaceMembersSection(props: WorkspaceMembersSectionProps) {
   );
 }
 
-type WorkspaceInviteSectionProps = {
-  inviteEmail: string;
-  inviteRole: InviteRole;
-  inviteResult: string | null;
-  onInviteEmailChange: (value: string) => void;
-  onInviteRoleChange: (value: InviteRole) => void;
-  onInvite: (e: FormEvent) => void;
+type InviteMemberDialogProps = {
+  onInvite: (email: string, role: InviteRole) => Promise<string>;
 };
 
-function WorkspaceInviteSection(props: WorkspaceInviteSectionProps) {
-  const {
-    inviteEmail,
-    inviteRole,
-    inviteResult,
-    onInviteEmailChange,
-    onInviteRoleChange,
-    onInvite,
-  } = props;
+function InviteMemberDialog(props: InviteMemberDialogProps) {
+  const { onInvite } = props;
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<InviteRole>("editor");
+  const [token, setToken] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const trimmed = email.trim();
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      setEmail("");
+      setRole("editor");
+      setToken(null);
+    }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!trimmed) return;
+    setSubmitting(true);
+    try {
+      const nextToken = await onInvite(trimmed, role);
+      setToken(nextToken);
+      setEmail("");
+    } catch {
+      // Parent surfaces the error.
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
-    <SidebarGroup>
-      <SidebarGroupLabel>
-        <UserPlus className="size-3.5" />
-        Invite
-      </SidebarGroupLabel>
-      <SidebarGroupContent className="space-y-2 px-2 pb-2">
-        <form onSubmit={onInvite} className="space-y-2">
-          <FormFieldLabel
-            htmlFor="invite-email"
-            required
-            info={WORKSPACES_FORM_FIELD_INFO.inviteEmail}
-          >
-            Email
-          </FormFieldLabel>
-          <Input
-            id="invite-email"
-            type="email"
-            value={inviteEmail}
-            onChange={(e) => onInviteEmailChange(e.target.value)}
-            placeholder="colleague@example.com"
-            required
-          />
-          <FormFieldLabel required info={WORKSPACES_FORM_FIELD_INFO.inviteRole}>
-            Role
-          </FormFieldLabel>
-          <Select
-            value={inviteRole}
-            onValueChange={(v) => onInviteRoleChange(v as InviteRole)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Role" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="editor">Editor</SelectItem>
-              <SelectItem value="viewer">Viewer</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button type="submit" size="sm" className="w-full">
-            Create invite
-          </Button>
-          {inviteResult ? (
-            <p className="break-all rounded-md bg-muted/60 px-2 py-1.5 font-mono text-[11px] text-muted-foreground">
-              {inviteResult}
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="outline"
+          className="shrink-0"
+          aria-label="Invite member"
+          title="Invite member"
+        >
+          <UserPlus className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Invite member</DialogTitle>
+          <DialogDescription>
+            Create an invite token to share with a collaborator.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <FormFieldLabel
+              htmlFor="invite-email"
+              required
+              info={WORKSPACES_FORM_FIELD_INFO.inviteEmail}
+            >
+              Email
+            </FormFieldLabel>
+            <Input
+              id="invite-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="colleague@example.com"
+              required
+              autoFocus
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-2">
+            <FormFieldLabel
+              required
+              info={WORKSPACES_FORM_FIELD_INFO.inviteRole}
+            >
+              Role
+            </FormFieldLabel>
+            <Select
+              value={role}
+              onValueChange={(v) => setRole(v as InviteRole)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="editor">Editor</SelectItem>
+                <SelectItem value="viewer">Viewer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {token ? (
+            <p className="break-all rounded-md bg-muted/60 px-2.5 py-2 font-mono text-[11px] text-muted-foreground">
+              {token}
             </p>
           ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+            >
+              {token ? "Done" : "Cancel"}
+            </Button>
+            <Button type="submit" disabled={submitting || !trimmed}>
+              {submitting ? "Creating…" : "Create invite"}
+            </Button>
+          </DialogFooter>
         </form>
-      </SidebarGroupContent>
-    </SidebarGroup>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 type WorkspaceHistorySectionProps = {
+  activeFileId: string | null;
   snapshots: Snapshot[];
   canEdit: boolean;
   onRestoreSnapshot: (snapshotId: string) => void;
 };
 
 function WorkspaceHistorySection(props: WorkspaceHistorySectionProps) {
-  const { snapshots, canEdit, onRestoreSnapshot } = props;
+  const { activeFileId, snapshots, canEdit, onRestoreSnapshot } = props;
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>
-        <History className="size-3.5" />
-        History
-      </SidebarGroupLabel>
       <SidebarGroupContent className="space-y-2 px-2 pb-3">
-        {snapshots.length === 0 ? (
+        {!activeFileId ? (
+          <p className="text-xs text-muted-foreground">
+            Select a file to view history
+          </p>
+        ) : snapshots.length === 0 ? (
           <p className="text-xs text-muted-foreground">No snapshots yet</p>
         ) : (
           snapshots.slice(0, 8).map((s) => (
