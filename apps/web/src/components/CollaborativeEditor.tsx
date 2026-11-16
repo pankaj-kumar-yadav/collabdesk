@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Editor, { OnMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import { useTheme } from "next-themes";
@@ -31,6 +31,12 @@ const CONNECTION_DOT_CLASS = {
   connecting: "warn",
   syncing: "warn",
 } as const satisfies Record<ConnectionStatus, "ok" | "bad" | "warn">;
+
+type CollabSession = {
+  doc: Y.Doc;
+  yText: Y.Text;
+  provider: CollabWebsocketProvider;
+};
 
 function applyMonacoTheme(monaco: typeof Monaco, mode: "light" | "dark") {
   if (mode === "light") {
@@ -65,6 +71,32 @@ function languageForFileName(fileName: string) {
   return "plaintext";
 }
 
+function bindMonacoToYText(
+  editor: Monaco.editor.IStandaloneCodeEditor | null,
+  session: CollabSession | null,
+  bindingRef: { current: MonacoBinding | null },
+) {
+  if (!editor || !session) return;
+  const model = editor.getModel();
+  if (!model) return;
+
+  // Destroy first so setValue does not echo back into Y.Text via the binding.
+  bindingRef.current?.destroy();
+  bindingRef.current = null;
+
+  const next = session.yText.toString();
+  if (model.getValue() !== next) {
+    model.setValue(next);
+  }
+
+  bindingRef.current = new MonacoBinding(
+    session.yText,
+    model,
+    new Set([editor]),
+    session.provider.awareness,
+  );
+}
+
 type PresenceUser = {
   clientId: number;
   id: string;
@@ -86,23 +118,27 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
   const [presence, setPresence] = useState<PresenceUser[]>([]);
   const [canWrite, setCanWrite] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<CollabSession | null>(null);
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
   const bindingRef = useRef<MonacoBinding | null>(null);
+  const sessionRef = useRef<CollabSession | null>(null);
   const decorationsRef = useRef<string[]>([]);
   const editorTheme = resolvedTheme === "light" ? "light" : "dark";
 
-  const { doc, yText, provider } = useMemo(() => {
-    const nextDoc = new Y.Doc();
-    const nextYText = nextDoc.getText("monaco");
+  useEffect(() => {
+    const doc = new Y.Doc();
+    const yText = doc.getText("monaco");
     const token = getToken();
     const url = `${getWsUrl()}?fileId=${encodeURIComponent(fileId)}&token=${encodeURIComponent(token ?? "")}`;
-    const nextProvider = new CollabWebsocketProvider(url, nextDoc);
-    return { doc: nextDoc, yText: nextYText, provider: nextProvider };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileId]);
+    const provider = new CollabWebsocketProvider(url, doc);
+    const nextSession: CollabSession = { doc, yText, provider };
+    sessionRef.current = nextSession;
+    setSession(nextSession);
+    setStatus("connecting");
+    setPresence([]);
+    setError(null);
 
-  useEffect(() => {
     const onStatus = (s: ConnectionStatus) => setStatus(s);
     const onHello = (payload: { canWrite?: boolean }) => {
       const writable = Boolean(payload.canWrite);
@@ -117,11 +153,15 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
     const onErr = (payload: { message?: string }) => {
       setError(payload.message ?? "Collaboration error");
     };
+    const onSynced = () => {
+      bindMonacoToYText(editorRef.current, nextSession, bindingRef);
+    };
 
     provider.on("status", onStatus);
     provider.on("hello", onHello);
     provider.on("role", onRole);
     provider.on("control-error", onErr);
+    provider.on("synced", onSynced);
 
     const paintRemoteSelections = () => {
       const editor = editorRef.current;
@@ -164,9 +204,9 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
             },
             after: isCursor
               ? {
-                content: "▋",
-                inlineClassName: "remote-cursor",
-              }
+                  content: "▋",
+                  inlineClassName: "remote-cursor",
+                }
               : undefined,
             stickiness:
               monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -178,14 +218,15 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
     };
 
     const refreshPresence = () => {
-      const users: PresenceUser[] = [];
+      // One chip per account — ignore ghost / multi-tab clientIDs for the same user.
+      const byUserId = new Map<string, PresenceUser>();
       provider.awareness.getStates().forEach((state, clientId) => {
         const user = (state as { user?: { id: string; name: string; color: string } })
           .user;
-        if (!user) return;
-        users.push({ clientId, ...user });
+        if (!user?.id) return;
+        byUserId.set(user.id, { clientId, ...user });
       });
-      setPresence(users);
+      setPresence([...byUserId.values()]);
       paintRemoteSelections();
     };
 
@@ -197,12 +238,22 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
       provider.off("hello", onHello);
       provider.off("role", onRole);
       provider.off("control-error", onErr);
+      provider.off("synced", onSynced);
       provider.awareness.off("change", refreshPresence);
       bindingRef.current?.destroy();
+      bindingRef.current = null;
       provider.destroy();
       doc.destroy();
+      if (sessionRef.current === nextSession) {
+        sessionRef.current = null;
+        setSession(null);
+      }
     };
-  }, [doc, onReadOnlyChange, provider]);
+  }, [fileId, onReadOnlyChange]);
+
+  useEffect(() => {
+    bindMonacoToYText(editorRef.current, session, bindingRef);
+  }, [session]);
 
   useEffect(() => {
     const monaco = monacoRef.current;
@@ -213,15 +264,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
   const onMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
-    const model = editor.getModel();
-    if (!model) return;
-
-    bindingRef.current = new MonacoBinding(
-      yText,
-      model,
-      new Set([editor]),
-      provider.awareness,
-    );
+    bindMonacoToYText(editor, sessionRef.current, bindingRef);
 
     const mode = document.documentElement.classList.contains("dark") ? "dark" : "light";
     applyMonacoTheme(monaco, mode);
@@ -239,7 +282,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
 
     editor.onDidChangeCursorSelection((e) => {
       const sel = e.selection;
-      provider.awareness.setLocalStateField("selection", {
+      sessionRef.current?.provider.awareness.setLocalStateField("selection", {
         startLineNumber: sel.startLineNumber,
         startColumn: sel.startColumn,
         endLineNumber: sel.endLineNumber,

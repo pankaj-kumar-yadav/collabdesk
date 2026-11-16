@@ -13,6 +13,7 @@
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @collabdesk/server prisma:migrate",
     "db:generate": "pnpm --filter @collabdesk/server prisma:generate",
+    "db:seed": "pnpm --filter @collabdesk/server prisma:seed",
     "test": "pnpm --filter @collabdesk/server test",
     "test:load": "pnpm --filter @collabdesk/server test:load",
     "lint": "pnpm -r lint"

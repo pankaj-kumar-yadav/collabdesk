@@ -1,12 +1,16 @@
-# Demo script (3 authenticated users)
+# Demo script (seeded users)
 
-1. Start stack: `pnpm db:up && pnpm dev` (and optionally `pnpm dev:desktop`).
-2. Register three users (unique emails, password ≥ 8 characters).
-3. As user A, create workspace **CollabDemo**, create file `main.ts`.
-4. Invite user B as **editor** and user C as **viewer**; copy invite tokens.
-5. As B and C, accept invites from the Workspaces page.
-6. Open `main.ts` in three windows:
+1. Start stack: `pnpm db:up && pnpm db:migrate && pnpm db:seed && pnpm dev` (and optionally `pnpm dev:desktop`).
+2. Sign in with any seeded account (password for all: `password@123`):
+   - `alice@example.com` — owner
+   - `bob@example.com` — editor
+   - `carol@example.com` — editor
+   - `dave@example.com` — viewer
+3. Open workspace **Demo Workspace** (already has `example.js`, `example.ts`, `example.md`).
+4. Open `example.ts` in multiple windows:
    - Confirm distinct cursor colors and live selections.
-   - Confirm C cannot edit (read-only).
-7. Disconnect B briefly, continue typing as A, reconnect B — missed edits appear.
-8. As A, downgrade B to viewer while B is connected — B’s subsequent writes are rejected.
+   - Confirm Dave cannot edit (read-only viewer).
+5. Disconnect Bob briefly, continue typing as Alice, reconnect Bob — missed edits appear.
+6. As Alice, downgrade Bob to viewer while Bob is connected — Bob’s subsequent writes are rejected.
+
+Re-run `pnpm db:seed` anytime; it is idempotent (keeps existing file content, restores login password).

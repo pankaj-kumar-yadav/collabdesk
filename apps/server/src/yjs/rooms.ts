@@ -243,6 +243,24 @@ function peekSyncMessageType(data: Uint8Array): number | null {
   }
 }
 
+function pruneOrphanAwarenessForUser(room: Room, userId: string) {
+  const owned = new Set<number>();
+  for (const peer of room.clients) {
+    if (peer.userId !== userId) continue;
+    for (const clientId of peer.controlledAwarenessIds) owned.add(clientId);
+  }
+
+  const stale: number[] = [];
+  for (const [clientId, state] of room.awareness.getStates()) {
+    const stateUserId = (state as { user?: { id?: string } } | undefined)?.user?.id;
+    if (stateUserId === userId && !owned.has(clientId)) {
+      stale.push(clientId);
+    }
+  }
+  if (stale.length === 0) return;
+  awarenessProtocol.removeAwarenessStates(room.awareness, stale, "stale-presence");
+}
+
 export async function attachClient(opts: {
   fileId: string;
   workspaceId: string;
@@ -263,6 +281,8 @@ export async function attachClient(opts: {
     controlledAwarenessIds: new Set(),
   };
   room.clients.add(client);
+  // Drop ghost presence left by reconnects / Strict Mode remounts for this user.
+  pruneOrphanAwarenessForUser(room, opts.userId);
 
   // Keep WS handling synchronous on the hot path. Role changes are pushed via
   // refreshClientRoleInWorkspace; periodic re-check catches revoked membership.
@@ -387,6 +407,8 @@ export async function attachClient(opts: {
           "client-close",
         );
       }
+      // Catch ghosts that never got bound to controlledAwarenessIds.
+      pruneOrphanAwarenessForUser(room, client.userId);
     } catch {
       // Room may already be tearing down.
     }

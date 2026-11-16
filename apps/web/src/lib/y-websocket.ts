@@ -111,14 +111,11 @@ export class CollabWebsocketProvider extends Observable<string> {
     };
 
     ws.onclose = () => {
-      this.ws = null;
       this.synced = false;
+      // Broadcast leave while the socket may still flush, then detach.
+      this.broadcastAwarenessLeave("connection closed");
       this.awareness.off("update", this.onAwarenessUpdate);
-      awarenessProtocol.removeAwarenessStates(
-        this.awareness,
-        [this.doc.clientID],
-        "connection closed",
-      );
+      this.ws = null;
       this.setStatus("offline");
       if (this.shouldConnect) {
         this.reconnectTimer = setTimeout(() => this.connect(), 800);
@@ -193,19 +190,35 @@ export class CollabWebsocketProvider extends Observable<string> {
     };
   }
 
+  private broadcastAwarenessLeave(reason: string) {
+    const clientId = this.doc.clientID;
+    const ws = this.ws;
+    // Keep the update listener long enough to flush a null-state leave to the server.
+    awarenessProtocol.removeAwarenessStates(this.awareness, [clientId], reason);
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    try {
+      const encoder = encoding.createEncoder();
+      encoding.writeVarUint(encoder, messageAwareness);
+      encoding.writeVarUint8Array(
+        encoder,
+        awarenessProtocol.encodeAwarenessUpdate(this.awareness, [clientId]),
+      );
+      ws.send(encoding.toUint8Array(encoder));
+    } catch {
+      // Best-effort leave; server also clears on socket close.
+    }
+  }
+
   destroy() {
     this.shouldConnect = false;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.awareness.off("update", this.onAwarenessUpdate);
+    if (this.awarenessFlushTimer) clearTimeout(this.awarenessFlushTimer);
     this.doc.off("update", this.onDocUpdate);
     if (typeof window !== "undefined") {
       window.removeEventListener("beforeunload", this.beforeUnload);
     }
-    awarenessProtocol.removeAwarenessStates(
-      this.awareness,
-      [this.doc.clientID],
-      "provider destroy",
-    );
+    this.broadcastAwarenessLeave("provider destroy");
+    this.awareness.off("update", this.onAwarenessUpdate);
     this.ws?.close();
     this.ws = null;
     this.awareness.destroy();

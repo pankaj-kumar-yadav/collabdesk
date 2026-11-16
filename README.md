@@ -103,6 +103,7 @@ Load test prints honest loopback measurements (not production WAN claims). See `
 
 ## Documentation
 
+- [Local run commands](docs/LOCAL_DEV.md) (backend, frontend, Prisma Studio)
 - [Architecture & trade-offs](docs/architecture.md)
 - [Consistency / recovery guarantees](docs/consistency.md)
 - [Measurements](docs/measurements.md)

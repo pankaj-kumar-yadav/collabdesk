@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "tsx prisma/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:load": "tsx scripts/load-test.ts",
@@ -28,6 +29,9 @@
     "y-protocols": "^1.0.6",
     "yjs": "^13.6.24",
     "zod": "^3.24.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
