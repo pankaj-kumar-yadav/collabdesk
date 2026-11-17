@@ -77,6 +77,7 @@ export type ConnectionStatus =
 
 export const WS_CONTROL = {
   ROLE_CHANGED: "role_changed",
+  MEMBERS_CHANGED: "members_changed",
   FILE_CHANGED: "file_changed",
   FILE_DELETED: "file_deleted",
   ERROR: "error",

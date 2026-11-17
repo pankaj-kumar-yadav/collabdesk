@@ -46,10 +46,13 @@ export type CollaborativeEditorProps = {
   fileName: string;
   readOnly?: boolean;
   onReadOnlyChange?: (readOnly: boolean) => void;
+  /** Refetch workspace members / myRole when server pushes membership changes. */
+  onWorkspaceInvalidate?: () => void;
 };
 
 export function CollaborativeEditor(props: CollaborativeEditorProps) {
-  const { fileId, fileName, readOnly, onReadOnlyChange } = props;
+  const { fileId, fileName, readOnly, onReadOnlyChange, onWorkspaceInvalidate } =
+    props;
   const { resolvedTheme } = useTheme();
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [presence, setPresence] = useState<CollaborativeEditorPresenceUser[]>(
@@ -95,6 +98,10 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
       const writable = Boolean(payload.canWrite);
       setCanWrite(writable);
       onReadOnlyChange?.(!writable);
+      onWorkspaceInvalidate?.();
+    };
+    const onMembers = () => {
+      onWorkspaceInvalidate?.();
     };
     const onErr = (payload: { message?: string }) => {
       setError(payload.message ?? "Collaboration error");
@@ -111,6 +118,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
     provider.on("status", onStatus);
     provider.on("hello", onHello);
     provider.on("role", onRole);
+    provider.on("members", onMembers);
     provider.on("control-error", onErr);
     provider.on("synced", onSynced);
 
@@ -150,6 +158,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
       provider.off("status", onStatus);
       provider.off("hello", onHello);
       provider.off("role", onRole);
+      provider.off("members", onMembers);
       provider.off("control-error", onErr);
       provider.off("synced", onSynced);
       provider.awareness.off("change", refreshPresence);
@@ -168,7 +177,7 @@ export function CollaborativeEditor(props: CollaborativeEditorProps) {
         setSession(null);
       }
     };
-  }, [fileId, onReadOnlyChange]);
+  }, [fileId, onReadOnlyChange, onWorkspaceInvalidate]);
 
   useEffect(() => {
     bindCollaborativeEditorMonacoToYText(

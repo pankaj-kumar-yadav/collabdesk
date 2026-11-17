@@ -30,6 +30,7 @@ export async function buildApp() {
   await app.register(cors, {
     origin: [env.CORS_ORIGIN, "http://localhost:3000", "http://127.0.0.1:3000"],
     credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposedHeaders: ["set-auth-token"],
   });
   await app.register(websocket);

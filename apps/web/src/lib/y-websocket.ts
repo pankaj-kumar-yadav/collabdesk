@@ -176,6 +176,8 @@ export class CollabWebsocketProvider extends Observable<string> {
         } else if (payload.type === "role_changed") {
           this.canWrite = Boolean(payload.canWrite);
           this.emit("role", [payload]);
+        } else if (payload.type === "members_changed") {
+          this.emit("members", [payload]);
         } else if (payload.type === "saved") {
           this.setStatus("saved");
         } else if (payload.type === "error") {

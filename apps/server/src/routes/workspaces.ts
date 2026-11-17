@@ -201,6 +201,9 @@ export async function workspaceRoutes(app: FastifyInstance) {
         type: "invitation_accepted",
         message: `${user.email} accepted invitation`,
       });
+      broadcastWorkspaceControl(invitation.workspaceId, {
+        type: WS_CONTROL.MEMBERS_CHANGED,
+      });
       return member;
     } catch (error) {
       return handleError(error, reply);
@@ -228,6 +231,11 @@ export async function workspaceRoutes(app: FastifyInstance) {
         data: { role: body.role },
       });
       await refreshClientRoleInWorkspace(workspaceId, member.userId);
+      broadcastWorkspaceControl(workspaceId, {
+        type: WS_CONTROL.MEMBERS_CHANGED,
+        userId: member.userId,
+        role: body.role,
+      });
       await logActivity({
         userId: user.id,
         workspaceId,
@@ -261,6 +269,11 @@ export async function workspaceRoutes(app: FastifyInstance) {
       }
       await prisma.workspaceMember.delete({ where: { id: member.id } });
       await refreshClientRoleInWorkspace(workspaceId, member.userId);
+      broadcastWorkspaceControl(workspaceId, {
+        type: WS_CONTROL.MEMBERS_CHANGED,
+        userId: member.userId,
+        removed: true,
+      });
       return { ok: true };
     } catch (error) {
       return handleError(error, reply);

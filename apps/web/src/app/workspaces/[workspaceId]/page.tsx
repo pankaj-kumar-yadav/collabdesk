@@ -39,6 +39,12 @@ export default function WorkspacePage() {
     });
   }, [workspaceId]);
 
+  const softRefresh = useCallback(() => {
+    void refresh().catch(() => {
+      /* keep last good members snapshot while offline */
+    });
+  }, [refresh]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -60,6 +66,21 @@ export default function WorkspacePage() {
       cancelled = true;
     };
   }, [refresh, router]);
+
+  // Keep Members / myRole fresh for other clients (WS push + poll + tab focus).
+  useEffect(() => {
+    const poll = window.setInterval(softRefresh, 4000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") softRefresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", softRefresh);
+    return () => {
+      window.clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", softRefresh);
+    };
+  }, [softRefresh]);
 
   const activeFile = data?.files.find((f) => f.id === activeFileId) ?? null;
 
@@ -143,9 +164,12 @@ export default function WorkspacePage() {
         method: "PATCH",
         body: JSON.stringify({ role }),
       });
+      setError(null);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Role update failed");
+      const message = err instanceof Error ? err.message : "Role update failed";
+      setError(message);
+      throw err instanceof Error ? err : new Error(message);
     }
   }
 
@@ -207,6 +231,7 @@ export default function WorkspacePage() {
             fileName={activeFile.name}
             readOnly={readOnly}
             onReadOnlyChange={setReadOnly}
+            onWorkspaceInvalidate={softRefresh}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center p-6">

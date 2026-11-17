@@ -87,7 +87,7 @@ export type WorkspaceFilesSidebarProps = {
   onRenameFile: (fileId: string, nextName: string) => void;
   onDeleteFile: (fileId: string) => void;
   onInvite: (email: string, role: InviteRole) => Promise<string>;
-  onChangeRole: (memberId: string, role: InviteRole) => void;
+  onChangeRole: (memberId: string, role: InviteRole) => Promise<void> | void;
   onRestoreSnapshot: (snapshotId: string) => void;
 };
 
@@ -509,7 +509,7 @@ function DeleteFileConfirmButton(props: DeleteFileConfirmButtonProps) {
 type WorkspaceMembersSectionProps = {
   members: Member[];
   isOwner: boolean;
-  onChangeRole: (memberId: string, role: InviteRole) => void;
+  onChangeRole: (memberId: string, role: InviteRole) => Promise<void> | void;
 };
 
 function WorkspaceMembersSection(props: WorkspaceMembersSectionProps) {
@@ -541,23 +541,11 @@ function WorkspaceMembersSection(props: WorkspaceMembersSectionProps) {
                   <RoleBadge role={m.role} className="shrink-0" />
                 </div>
                 {isOwner && m.role !== "owner" ? (
-                  <div className="mt-2 flex gap-1">
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="outline"
-                      onClick={() => onChangeRole(m.id, "editor")}
-                    >
-                      Editor
-                    </Button>
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="outline"
-                      onClick={() => onChangeRole(m.id, "viewer")}
-                    >
-                      Viewer
-                    </Button>
+                  <div className="mt-2">
+                    <ChangeMemberRoleDialog
+                      member={m}
+                      onChangeRole={onChangeRole}
+                    />
                   </div>
                 ) : null}
               </div>
@@ -566,6 +554,101 @@ function WorkspaceMembersSection(props: WorkspaceMembersSectionProps) {
         ))}
       </SidebarGroupContent>
     </SidebarGroup>
+  );
+}
+
+type ChangeMemberRoleDialogProps = {
+  member: Member;
+  onChangeRole: (memberId: string, role: InviteRole) => Promise<void> | void;
+};
+
+function ChangeMemberRoleDialog(props: ChangeMemberRoleDialogProps) {
+  const { member, onChangeRole } = props;
+  const [open, setOpen] = useState(false);
+  const currentRole: InviteRole =
+    member.role === "viewer" ? "viewer" : "editor";
+  const [role, setRole] = useState<InviteRole>(currentRole);
+  const [submitting, setSubmitting] = useState(false);
+  const unchanged = role === currentRole;
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (next) {
+      setRole(member.role === "viewer" ? "viewer" : "editor");
+    }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (unchanged) {
+      setOpen(false);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await onChangeRole(member.id, role);
+      setOpen(false);
+    } catch {
+      // Parent surfaces the error.
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild>
+        <Button type="button" size="xs" variant="outline">
+          Change role
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Change role</DialogTitle>
+          <DialogDescription>
+            Update access for {member.user.name} ({member.user.email}).
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2">
+            <span className="text-sm text-muted-foreground">Current role</span>
+            <RoleBadge role={member.role} />
+          </div>
+          <div className="space-y-2">
+            <FormFieldLabel
+              required
+              info={WORKSPACES_FORM_FIELD_INFO.inviteRole}
+            >
+              New role
+            </FormFieldLabel>
+            <Select
+              value={role}
+              onValueChange={(v) => setRole(v as InviteRole)}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="editor">Editor</SelectItem>
+                <SelectItem value="viewer">Viewer</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting || unchanged}>
+              {submitting ? "Saving…" : "Save role"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
