@@ -6,6 +6,8 @@ coverage
 *.log
 .env
 .env.local
+.env.production
+.env.*.local
 .DS_Store
 apps/desktop/release
 apps/server/prisma/*.db
