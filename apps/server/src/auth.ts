@@ -12,7 +12,12 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
   },
-  trustedOrigins: [env.CORS_ORIGIN, "http://localhost:3000", "app://."],
+  trustedOrigins: [
+    env.CORS_ORIGIN,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "app://.",
+  ],
   advanced: {
     useSecureCookies: env.COOKIE_SECURE,
     defaultCookieAttributes: {

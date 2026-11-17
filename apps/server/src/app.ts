@@ -28,7 +28,7 @@ export async function buildApp() {
   const app = Fastify({ logger: loggerOptions });
 
   await app.register(cors, {
-    origin: [env.CORS_ORIGIN, "http://localhost:3000"],
+    origin: [env.CORS_ORIGIN, "http://localhost:3000", "http://127.0.0.1:3000"],
     credentials: true,
     exposedHeaders: ["set-auth-token"],
   });
