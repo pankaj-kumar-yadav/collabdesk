@@ -44,6 +44,8 @@ type Room = {
 
 const rooms = new Map<string, Room>();
 const roomDestroyTimers = new Map<string, ReturnType<typeof setTimeout>>();
+/** In-flight create promises so concurrent joins share one room. */
+const roomCreating = new Map<string, Promise<Room>>();
 
 function send(ws: WebSocket, encoder: encoding.Encoder) {
   if (ws.readyState === ws.OPEN) {
@@ -86,102 +88,124 @@ export function broadcastWorkspaceControl(
 export async function getOrCreateRoom(fileId: string, workspaceId: string): Promise<Room> {
   const existing = rooms.get(fileId);
   if (existing && !existing.closed) {
-    const pending = roomDestroyTimers.get(fileId);
-    if (pending) {
-      clearTimeout(pending);
+    const pendingDestroy = roomDestroyTimers.get(fileId);
+    if (pendingDestroy) {
+      clearTimeout(pendingDestroy);
       roomDestroyTimers.delete(fileId);
     }
     return existing;
   }
 
-  const loaded = await loadDocument(fileId);
-  const awareness = new awarenessProtocol.Awareness(loaded.doc);
-  const room: Room = {
-    fileId,
-    workspaceId,
-    doc: loaded.doc,
-    awareness,
-    clients: new Set(),
-    nextSeq: loaded.nextSeq,
-    updatesSinceSnapshot: loaded.updatesSinceSnapshot,
-    lastSnapshotAt: Date.now(),
-    persistQueue: Promise.resolve(),
-    closed: false,
-  };
+  const inFlight = roomCreating.get(fileId);
+  if (inFlight) return inFlight;
 
-  loaded.doc.on("update", (update: Uint8Array, origin: unknown) => {
-    if (origin === "load" || origin === "restore") return;
-
-    const encoder = encoding.createEncoder();
-    encoding.writeVarUint(encoder, messageSync);
-    syncProtocol.writeUpdate(encoder, update);
-    const message = encoding.toUint8Array(encoder);
-
-    for (const client of room.clients) {
-      if (origin !== client && client.ws.readyState === client.ws.OPEN) {
-        client.ws.send(message);
+  const creating = (async () => {
+    const raced = rooms.get(fileId);
+    if (raced && !raced.closed) {
+      const pendingDestroy = roomDestroyTimers.get(fileId);
+      if (pendingDestroy) {
+        clearTimeout(pendingDestroy);
+        roomDestroyTimers.delete(fileId);
       }
+      return raced;
     }
 
-    const seq = room.nextSeq;
-    room.nextSeq += 1;
-    room.updatesSinceSnapshot += 1;
+    const loaded = await loadDocument(fileId);
+    const awareness = new awarenessProtocol.Awareness(loaded.doc);
+    const room: Room = {
+      fileId,
+      workspaceId,
+      doc: loaded.doc,
+      awareness,
+      clients: new Set(),
+      nextSeq: loaded.nextSeq,
+      updatesSinceSnapshot: loaded.updatesSinceSnapshot,
+      lastSnapshotAt: Date.now(),
+      persistQueue: Promise.resolve(),
+      closed: false,
+    };
 
-    room.persistQueue = room.persistQueue
-      .then(async () => {
-        await persistUpdate(fileId, seq, update);
-        const snap = await maybeSnapshot(
-          fileId,
-          room.doc,
-          seq,
-          room.updatesSinceSnapshot,
-          room.lastSnapshotAt,
-        );
-        room.updatesSinceSnapshot = snap.updatesSinceSnapshot;
-        room.lastSnapshotAt = snap.lastSnapshotAt;
-        for (const client of room.clients) {
-          sendControl(client.ws, { type: WS_CONTROL.SAVED, seq });
-        }
-      })
-      .catch(async (error) => {
-        console.error("Persist failure", error);
-        await logError({
-          fileId,
-          workspaceId,
-          code: "persist_failed",
-          message: error instanceof Error ? error.message : "Persist failed",
-        });
-      });
-  });
+    loaded.doc.on("update", (update: Uint8Array, origin: unknown) => {
+      if (origin === "load" || origin === "restore") return;
 
-  awareness.on(
-    "update",
-    (
-      {
-        added,
-        updated,
-        removed,
-      }: { added: number[]; updated: number[]; removed: number[] },
-      origin: unknown,
-    ) => {
-      const changed = added.concat(updated, removed);
       const encoder = encoding.createEncoder();
-      encoding.writeVarUint(encoder, messageAwareness);
-      encoding.writeVarUint8Array(
-        encoder,
-        awarenessProtocol.encodeAwarenessUpdate(awareness, changed),
-      );
+      encoding.writeVarUint(encoder, messageSync);
+      syncProtocol.writeUpdate(encoder, update);
       const message = encoding.toUint8Array(encoder);
+
       for (const client of room.clients) {
         if (origin !== client && client.ws.readyState === client.ws.OPEN) {
           client.ws.send(message);
         }
       }
-    },
-  );
 
-  rooms.set(fileId, room);
-  return room;
+      const seq = room.nextSeq;
+      room.nextSeq += 1;
+      room.updatesSinceSnapshot += 1;
+
+      room.persistQueue = room.persistQueue
+        .then(async () => {
+          await persistUpdate(fileId, seq, update);
+          const snap = await maybeSnapshot(
+            fileId,
+            room.doc,
+            seq,
+            room.updatesSinceSnapshot,
+            room.lastSnapshotAt,
+          );
+          room.updatesSinceSnapshot = snap.updatesSinceSnapshot;
+          room.lastSnapshotAt = snap.lastSnapshotAt;
+          for (const client of room.clients) {
+            sendControl(client.ws, { type: WS_CONTROL.SAVED, seq });
+          }
+        })
+        .catch(async (error) => {
+          console.error("Persist failure", error);
+          await logError({
+            fileId,
+            workspaceId,
+            code: "persist_failed",
+            message: error instanceof Error ? error.message : "Persist failed",
+          });
+        });
+    });
+
+    awareness.on(
+      "update",
+      (
+        {
+          added,
+          updated,
+          removed,
+        }: { added: number[]; updated: number[]; removed: number[] },
+        origin: unknown,
+      ) => {
+        const changed = added.concat(updated, removed);
+        const encoder = encoding.createEncoder();
+        encoding.writeVarUint(encoder, messageAwareness);
+        encoding.writeVarUint8Array(
+          encoder,
+          awarenessProtocol.encodeAwarenessUpdate(awareness, changed),
+        );
+        const message = encoding.toUint8Array(encoder);
+        for (const client of room.clients) {
+          if (origin !== client && client.ws.readyState === client.ws.OPEN) {
+            client.ws.send(message);
+          }
+        }
+      },
+    );
+
+    rooms.set(fileId, room);
+    return room;
+  })();
+
+  roomCreating.set(fileId, creating);
+  try {
+    return await creating;
+  } finally {
+    roomCreating.delete(fileId);
+  }
 }
 
 export async function refreshClientRole(fileId: string, userId: string) {
@@ -358,9 +382,11 @@ export async function attachClient(opts: {
         const before = new Set(room.awareness.getStates().keys());
         awarenessProtocol.applyAwarenessUpdate(room.awareness, update, client);
 
-        // Bind newly seen awareness clientIDs to this authenticated socket.
-        for (const clientId of room.awareness.getStates().keys()) {
-          if (!before.has(clientId) || client.controlledAwarenessIds.has(clientId)) {
+        // Bind awareness clientIDs from this socket: newly seen IDs, or any
+        // state that already claims this authenticated user id.
+        for (const [clientId, state] of room.awareness.getStates()) {
+          const stateUserId = (state as { user?: { id?: string } } | undefined)?.user?.id;
+          if (!before.has(clientId) || stateUserId === client.userId) {
             client.controlledAwarenessIds.add(clientId);
           }
         }
@@ -493,6 +519,7 @@ export function getRoomStats() {
 export async function closeAllRooms() {
   for (const timer of roomDestroyTimers.values()) clearTimeout(timer);
   roomDestroyTimers.clear();
+  roomCreating.clear();
   const snapshot = [...rooms.values()];
   for (const room of snapshot) {
     room.closed = true;

@@ -11,6 +11,7 @@ import { closeAllRooms } from "@/yjs/rooms";
 
 const messageSync = 0;
 const messageAwareness = 1;
+const remoteOrigin = "remote";
 
 export async function startTestServer() {
   const app = await buildApp();
@@ -57,14 +58,11 @@ export async function registerAndLogin(
     throw new Error(`sign-in failed: ${signIn.status} ${text}`);
   }
 
-  const sessionRes = await fetch(`${baseUrl}/api/auth/get-session`, {
-    headers: {
-      cookie: signIn.headers.getSetCookie?.().join("; ") ?? signIn.headers.get("set-cookie") ?? "",
-    },
-  });
-
-  // Prefer bearer token from DB session created by sign-in
-  const body = (await signIn.json()) as { token?: string; user?: { id: string }; session?: { token: string } };
+  const body = (await signIn.json()) as {
+    token?: string;
+    user?: { id: string };
+    session?: { token: string };
+  };
   let token = body.token ?? body.session?.token;
   if (!token) {
     const user = await prisma.user.findUnique({ where: { email: input.email } });
@@ -103,6 +101,7 @@ export class TestYClient {
   synced = false;
   controls: unknown[] = [];
   text: Y.Text;
+  serverUser: { id: string; name: string; color: string } | null = null;
 
   constructor(url: string) {
     this.text = this.doc.getText("monaco");
@@ -110,36 +109,14 @@ export class TestYClient {
     this.ws.binaryType = "nodebuffer";
 
     this.doc.on("update", (update, origin) => {
-      if (origin === "remote" || this.ws.readyState !== WebSocket.OPEN) return;
+      if (origin === remoteOrigin || this.ws.readyState !== WebSocket.OPEN) return;
       const encoder = encoding.createEncoder();
       encoding.writeVarUint(encoder, messageSync);
       syncProtocol.writeUpdate(encoder, update);
       this.ws.send(encoding.toUint8Array(encoder));
     });
 
-    this.awareness.on(
-      "update",
-      (
-        {
-          added,
-          updated,
-          removed,
-        }: { added: number[]; updated: number[]; removed: number[] },
-        origin: unknown,
-      ) => {
-        if (origin === "remote" || this.ws.readyState !== WebSocket.OPEN) return;
-        const encoder = encoding.createEncoder();
-        encoding.writeVarUint(encoder, messageAwareness);
-        encoding.writeVarUint8Array(
-          encoder,
-          awarenessProtocol.encodeAwarenessUpdate(
-            this.awareness,
-            added.concat(updated, removed),
-          ),
-        );
-        this.ws.send(encoding.toUint8Array(encoder));
-      },
-    );
+    this.awareness.on("update", this.onAwarenessUpdate);
 
     this.ws.on("message", (raw) => {
       const data = new Uint8Array(raw as Buffer);
@@ -148,19 +125,31 @@ export class TestYClient {
       if (type === messageSync) {
         const encoder = encoding.createEncoder();
         encoding.writeVarUint(encoder, messageSync);
-        const syncType = syncProtocol.readSyncMessage(decoder, encoder, this.doc, "remote");
+        const syncType = syncProtocol.readSyncMessage(
+          decoder,
+          encoder,
+          this.doc,
+          remoteOrigin,
+        );
         if (encoding.length(encoder) > 1) this.ws.send(encoding.toUint8Array(encoder));
         if (syncType === syncProtocol.messageYjsSyncStep2) this.synced = true;
       } else if (type === messageAwareness) {
         awarenessProtocol.applyAwarenessUpdate(
           this.awareness,
           decoding.readVarUint8Array(decoder),
-          "remote",
+          remoteOrigin,
         );
       } else if (type === 2) {
-        const control = JSON.parse(decoding.readVarString(decoder));
+        const control = JSON.parse(decoding.readVarString(decoder)) as {
+          type?: string;
+          user?: { id: string; name: string; color: string };
+        };
         this.controls.push(control);
-        if ((control as { type?: string }).type === "hello") {
+        if (control.type === "hello") {
+          if (control.user) {
+            this.serverUser = control.user;
+            this.awareness.setLocalStateField("user", control.user);
+          }
           const encoder = encoding.createEncoder();
           encoding.writeVarUint(encoder, messageSync);
           syncProtocol.writeSyncStep1(encoder, this.doc);
@@ -168,6 +157,29 @@ export class TestYClient {
         }
       }
     });
+  }
+
+  private onAwarenessUpdate = (
+    {
+      added,
+      updated,
+      removed,
+    }: { added: number[]; updated: number[]; removed: number[] },
+    origin: unknown,
+  ) => {
+    if (origin === remoteOrigin || this.ws.readyState !== WebSocket.OPEN) return;
+    this.sendAwareness(added.concat(updated, removed));
+  };
+
+  sendAwareness(clientIds: number[] = [this.doc.clientID]) {
+    if (this.ws.readyState !== WebSocket.OPEN) return;
+    const encoder = encoding.createEncoder();
+    encoding.writeVarUint(encoder, messageAwareness);
+    encoding.writeVarUint8Array(
+      encoder,
+      awarenessProtocol.encodeAwarenessUpdate(this.awareness, clientIds),
+    );
+    this.ws.send(encoding.toUint8Array(encoder));
   }
 
   waitOpen() {
@@ -223,6 +235,16 @@ export class TestYClient {
   }
 
   close() {
+    this.awareness.off("update", this.onAwarenessUpdate);
+    try {
+      awarenessProtocol.removeAwarenessStates(
+        this.awareness,
+        [this.doc.clientID],
+        "test-close",
+      );
+    } catch {
+      /* ignore */
+    }
     this.awareness.destroy();
     this.doc.destroy();
     this.ws.close();

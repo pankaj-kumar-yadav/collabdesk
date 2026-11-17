@@ -133,25 +133,22 @@ describe("CollabDesk acceptance", () => {
     try {
       await Promise.all([a.waitOpen(), b.waitOpen()]);
       await Promise.all([a.waitSynced(), b.waitSynced()]);
-      // Ensure document channel is live before presence checks.
-      a.doc.transact(() => a.text.insert(0, "ping"));
-      await b.waitForText((t) => t.includes("ping"));
+      const helloDeadline = Date.now() + 3000;
+      while (Date.now() < helloDeadline && (!a.serverUser || !b.serverUser)) {
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      expect(a.serverUser?.id).toBe(alice.userId);
 
-      for (let i = 0; i < 5 && !foundRemote(b, alice.userId); i += 1) {
-        a.awareness.setLocalState({
-          user: {
-            id: alice.userId,
-            name: "Alice",
-            color: "#E4572E",
-          },
-          selection: {
-            startLineNumber: 1,
-            startColumn: 1,
-            endLineNumber: 1,
-            endColumn: 5 + i,
-          },
+      for (let i = 0; i < 10 && !foundRemote(b, alice.userId); i += 1) {
+        a.awareness.setLocalStateField("selection", {
+          startLineNumber: 1,
+          startColumn: 1,
+          endLineNumber: 1,
+          endColumn: 5 + i,
         });
-        await new Promise((r) => setTimeout(r, 250));
+        // Explicit flush in case the awareness "update" event coalesced.
+        a.sendAwareness([a.doc.clientID]);
+        await new Promise((r) => setTimeout(r, 150));
       }
       const start = Date.now();
       while (Date.now() - start < 5000 && !foundRemote(b, alice.userId)) {
