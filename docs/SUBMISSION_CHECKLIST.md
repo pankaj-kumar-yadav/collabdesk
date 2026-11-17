@@ -24,7 +24,7 @@
 - [x] Prisma schema + migrations
 - [x] Root `.env.example` (and copies referenced in README) — **no real secrets**
 - [x] Tests (`pnpm test`, `pnpm test:load`)
-- [x] Docs: `README.md`, `docs/architecture.md`, `docs/consistency.md`, `docs/measurements.md`, `docs/demo.md`
+- [x] Docs: `README.md`, `docs/architecture.md`, `docs/ENGINEERING_NOTE.md`, `docs/ACCEPTANCE_TESTS.md`, `docs/measurements.md`, `docs/demo.md`
 
 ### 2. Packaged Electron app — MOSTLY (share step left)
 
@@ -50,8 +50,9 @@
 ### 5. Proof / evidence — DONE
 
 - [x] Acceptance tests exist (`apps/server/src/test/collaboration.test.ts`) — re-run `pnpm test` before send
+- [x] Acceptance outcomes documented: `docs/ACCEPTANCE_TESTS.md` (9/9 pass, 2026-11-17)
 - [x] Load / latency note filled: `docs/measurements.md`
-- [x] Consistency guarantees written: `docs/consistency.md`
+- [x] Consistency / crash / recovery engineering note: `docs/ENGINEERING_NOTE.md`
 
 ---
 

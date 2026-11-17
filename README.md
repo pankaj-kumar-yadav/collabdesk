@@ -88,25 +88,19 @@ pnpm test
 pnpm test:load
 ```
 
-Acceptance coverage (server):
+Acceptance coverage (server): see [`docs/ACCEPTANCE_TESTS.md`](docs/ACCEPTANCE_TESTS.md) for the full §4 results matrix (9/9 passing).
 
-- Concurrent inserts / nearby edit+delete convergence
-- Awareness selection propagation
-- Reconnect after interruption
-- Backend restart persistence
-- Expired session → 401
-- Permission downgrade → write rejected
-- Unauthorized WS room join denied
-- Snapshot history listing
-
-Load test prints honest loopback measurements (not production WAN claims). See `docs/measurements.md`.
+Load test prints honest loopback measurements (not production WAN claims). See [`docs/measurements.md`](docs/measurements.md).
 
 ## Documentation
 
 - [Local run commands](docs/LOCAL_DEV.md) (backend, frontend, Prisma Studio)
 - [Architecture & trade-offs](docs/architecture.md)
-- [Consistency / recovery guarantees](docs/consistency.md)
+- [Engineering note — crash / recovery / consistency](docs/ENGINEERING_NOTE.md)
+- [Acceptance test outcomes (§4)](docs/ACCEPTANCE_TESTS.md)
+- [Consistency (short)](docs/consistency.md)
 - [Measurements](docs/measurements.md)
+- [Demo script (3 users)](docs/demo.md)
 
 ## Persistence guarantees (short)
 
